@@ -1,0 +1,2191 @@
+\chapter{Exceptions}
+
+\index{exceptions }
+
+\begin{teaser}
+This chapter considers exceptions in Clojure. How do they work and how do they differ from their Java counterparts? When is it better to throw and when to catch exceptions? What do you write in a log and how do you write it to make an incident investigation easy?
+\end{teaser}
+
+Somebody might find it strange to devote an entire chapter to exceptions. The topic, after all, is simple: exceptions can only be thrown, caught, and logged. Theoretically, this is enough to work on a project.
+
+Exceptions are technically simple, but they have rich \emph{semantics}. When exactly should you throw and catch exceptions? What useful information do they carry? Where to write exceptions? Can we catch them with predicates? In practice, we are overwhelmed with countless specific cases.
+
+Newbies tend to follow the positive path (as if they are on ideal conditions), so it is hard to troubleshoot errors in their code. Why did the server respond with code 500? There are innumerable possible reasons why the request failed. However, the log entry provides too little information to understand what has happened.
+
+A good programmer pays close attention to errors. With experience, it becomes clear~--- refusing exceptions does not pay off. Without them, we will complete the task faster, and there will be less code~--- that is right. But later, you will have problems with detailing and fixing said errors.
+
+Exceptions in code are just as important as normal behavior. If you think this kind of problem will not happen to you, think again. If your project encounters trouble due to uncaught errors, then it is time to study the topic.
+
+\section{Basics of Exceptions}
+
+\index{classes!Exception}
+
+Before going into detail, let us remember what exceptions are and how they behave.
+
+An exception is an object, most often an instance of the \verb|Exception| class. It differs from other classes in that we can \emph{throw} it. In different languages, there are operators which serve this purpose. Among those are \verb|throw|, \verb|raise|, and others.
+
+The thrown object interrupts execution and floats up the call stack. There are two possible outcomes: either the \verb|catch| statement catches it at one of the levels or not~--- knowingly or by mistake.
+
+In the first case, we will get an exception \emph{object}. We access it as usual: get fields, call methods, pass them to functions. Further behavior depends on program logic. Sometimes an exception is logged, and the program is terminated; otherwise, the program continues running.
+
+If we do not catch the exception, the program will exit with nonzero code. Unless otherwise specified, the program will write the exception to \verb|stderr| (error channel) before exiting. We will see its class, text, and stack trace there. The last is the chain of calls that an exception passed through.
+
+\index{exceptions!stacktrace}
+\index{channels!stderr}
+
+Some platforms allow you to specify a reaction to an uncaught exception. For example, to write it to a file or terminate the program in a special way.
+
+\begin{figure}[ht!]
+  \chart{chart-ex-tree}
+  \caption{Base Exception Classes}
+  \label{fig:exceptions}
+\end{figure}
+
+Clojure is a hosted language: it relies on the capabilities that the \emph{host} offers. Exceptions are an area where Clojure leverages Java best practices. By default, Clojure uses the \verb|try| and \verb|catch| forms similar to Java's.
+
+\index{classes!Throwable}
+
+Let's take a look at Java's exceptions \fig{fig:exceptions}. The platform contains the \texttt{Throwable} base class, the ancestor of all exceptions. Other classes inherit from it and extend its semantics. The \verb|Error| and \verb|Exception| classes are first-level heirs. The \verb|RuntimeException| class inherits from from the \verb|Exception| one and so on.
+
+\index{classes!IOException}
+
+Java packages contain additional exceptions inherited from those described above. For example, \verb|java.io.IOException| is for I/O errors, \verb|java.net.ConnectException|~--- for network problems. Throwing \verb|Throwable| is considered bad manner because this class carries too little information about what happened.
+
+In the exception tree, each class complements the semantics of the ancestor. Consider the \verb|FileNotFoundException| exception. It arises when a file is not on disk. The class pedigree looks like this:
+
+\linegap
+
+\ifx\DEVICETYPE\MOBILE
+
+\dirtree{%
+ .1 Object.
+ .2 Throwable.
+ .3 Exception.
+ .4 IOException.
+ .5 FileNotFoundException.
+}
+
+\else
+
+\dirtree{%
+ .1 java.lang.Object.
+ .2 java.lang.Throwable.
+ .3 java.lang.Exception.
+ .4 java.io.IOException.
+ .5 java.io.FileNotFoundException.
+}
+
+\fi
+
+\linegap
+
+The diagram is read like this ``object \arr throwable \arr exception \arr I/O error \arr file not found''. It's easy to guess by the name \verb|FileNotFoundException| what the problem is. If a developer threw a \verb|Throwable|, it would make it harder to find the cause of the error.
+
+There are \emph{checked} and \emph{unchecked} exceptions.
+They differ in semantics. The developer must anticipate checked exceptions and handle them in code. When we read a file, which is not on disk, the \verb|FileNotFoundException| class is a checked exception.
+
+\index{classes!FileNotFoundException}
+
+\label{exc-hierarchy}
+
+However, it is difficult to predict a memory shortage, so \verb|OutOfMemoryError| is an unchecked exception. When resources are limited, any action can run out of memory. There is no point in catching this exception since the system is unstable when there is insufficient memory.
+
+\index{exceptions!checked}
+\index{exceptions!unchecked}
+
+The classes inherited from \verb|Error| and \texttt{Runtime\-Exception} are unchecked exceptions. Those inherited from \verb|Exception| are checked exceptions.
+
+\index{exceptions!throw}
+\index{exceptions!catch}
+
+To throw an exception, we pass its instance to the \verb|throw| statement. The \verb|catch| statement catches exceptions. In Java and other languages, it relies on a class hierarchy. If the type we are looking for is \verb|IOException|, we will catch all exceptions inherited from this class.
+
+The higher the class in the inheritance tree, the more exceptions the \verb|catch| statement will cover. In Java, it is bad manner to catch errors with the \verb|Throwable| or \verb|Exception| classes. Today's IDEs generate the ``too broad catch expression'' warning. It is better to replace the \verb|Exception| class with some more precise ones: for example, I/O errors, network errors, and others separately.
+
+One class is not enough to understand an exception cause.
+\verb|FileNotFoundException| does not have the \verb|file| field to track down which particular file does not exist. Most exceptions take an error message string. The message must be understandable to a person.
+If we see the message ``File C:/work/test.txt not found'', it becomes clear which file we were trying to access.
+
+\index{messages}
+
+Sometimes a text is not enough to explain the reason for the error. Let us say data validation failed, and we would like to investigate it later. If you write the data to the message, the text will be too large. Additionally, this is not secure: the data may contain personal information or access keys. Such a message must not be logged or shown to a user. Even the file path can reveal valuable information to outsiders.
+
+If you need to store data for investigation, create a new exception class with a separate field for the data that caused the error. The field is populated in the exception constructor. Create your message so that it does not reveal private information.
+
+\section{Chains and Context}
+
+\index{exceptions!chains}
+
+Exceptions are chained. Each instance takes an optional \verb|cause| argument. It stores either \verb|Null| or a link to another exception.
+
+\index{null!in Java}
+
+\index{context}
+
+Chains are formed when the code catches an exception but does not know what to do with it. Since the code does not see the full picture at a low level, this is normal. Suppose the method writes data to a file. It has no authority to decide what to do if the file does not exist so an exception will be thrown. Another method that also does not make decisions will catch this exception. You only need to create a new exception with a link to the first one. This is the chain.
+
+Eventually, control will pass to the method that knows what to do.
+The logic depends on an exception type and business rules. If a file does not exist, the program will create it or search elsewhere. If an HTTP request fails, it the method waits for a second and repeat it, and after the third attempt, terminate the program.
+
+The system should have the last frontier where all exceptions are caught. If the error has reached this level, then the rules below did not catch it. This indicates abnormal system behavior. A client will receive a text stating that the request has not passed. For investigating the cause, the exception is logged and passed to the error collector.
+
+Conditions imposed by company management to help develop their business are known collectively as business logic. Business logic lies at the top level of code, and the more technical parts come into play at lower levels. Let us say the \verb|get-user| function finds a user by their number. From the outside, it's a black box: we do not know where the data comes from. Suppose the function is communicating with a network. Let us write this in Python:
+
+\ifx\DEVICETYPE\MOBILE
+
+\index{languages!Python}
+\begin{python}
+def get-user(id):
+  url = "http://api.company.com/" + \
+        "user/" + str(id)
+  return http.GET(url).body.json()
+\end{python}
+
+\else
+
+\index{languages!Python}
+\begin{python}
+def get-user(id):
+  url = "http://api.company.com/user/" + str(id)
+  return http.GET(url).body.json()
+\end{python}
+
+\fi
+
+If we call a function with a number that does not exist in the system, we will get the \verb|HTTP Error: status 404| exception. This text does not say anything about the user. We will not understand from such an entry in the log which service we accessed.
+
+The more we go into technical details, the less we know about the business. In HTTP, there is no such thing as a user. Only the method, address, and other fields of the request are known. Let us divide the error into two halves.
+The top half indicates the business reason: User 42 was not found. Why? The GET request to the \verb|http://api.company.com/user/42| address returned status 404 due to technical glitch.
+
+Let us place \verb|try/catch| in our code. If the exception came from technical levels, let us add context and send it up. The pattern is called \verb|re-throw|. Here is the new Python code:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{python}
+def get-user(id):
+  try:
+    url = "http://api.company.com/" + \
+          "user/" + str(id)
+    return http.GET(url).body.json()
+  except Exception as e:
+    raise Exception ("Cannot fetch " + \
+          "user " + str(id)) from e
+\end{python}
+
+\else
+
+\begin{js}
+def get_user(id):
+  try:
+    url = "http://api.company.com/user/" + str(id)
+    return http.GET(url).body.json()
+  except Exception as e:
+    raise Exception("Cannot fetch user " + str(id)) from e
+
+\end{js}
+
+\fi
+
+\index{HTTP!errors}
+
+The new exception describes a business problem while referring to a technical one. An HTTP error might also have the following causes: an expired certificate or connection problems. A chain of exceptions is formed. There are up to five or more links in projects.
+
+Descending a chain is like an interrogation. In response to each why question, we receive new information until we get to the heart of the matter. This is not to say that the innermost exception is more important than the others: the \verb|HTTPError| exception cannot answer all questions alone. The important thing is how you came to it.
+
+That is how exceptions work in languages like Java, Python, and others. Each platform has its features, but the overall picture does not change. Now let us take a look at what Clojure has to offer.
+
+\section{Moving on to Clojure}
+
+To get acquainted with the exception, let's provoke it. A surefire trick is to divide a number by zero. Turn on REPL and do \verb|(/ 1 0)|. The following text will appear:
+
+\index{divide by zero}
+
+\begin{text}
+Execution error (ArithmeticException)...
+Divide by zero
+\end{text}
+
+This is the bug report. It looks different depending on the editor and settings. Emacs with the CIDER module will open the \texttt{*cider\--error*} buffer with detailed information.
+
+\index{Emacs!*cider-error*}
+\index{REPL}
+\index{exeptions!in REPL}
+
+Note that an exception in the REPL does not stop it: a command is still expected from us. The REPL catches errors and only displays them on a screen. Clojure programs work as usual in a production run. If no exception is caught on the main thread, the program will stop.
+
+To catch the exception, place the code in the \verb|try| form. It is followed by one or more \verb|catch| forms. They indicate which classes to catch and what to do with an exception. Here's how to safely divide a number:
+
+\index{arithmetic}
+
+\begin{clojure}
+(try
+  (/ 1 0)
+  (catch ArithmeticException e
+    (println "Weird arithmetics")))
+\end{clojure}
+
+The \verb|catch| form takes a class and an arbitrary symbol. An exception will be bound with it if control is taken to that branch. Next goes the arbitrary code. There, the exception is available as the local variable \verb|e|.
+
+\index{exceptions!ex-message}
+
+We display the text about the failure of calculations.
+This explanation is of little use. The \verb|.getMessage| method will return the message assigned to the exception when it was created. Since version 1.10, Clojure offers the \verb|ex-message| function that does the same:
+
+\begin{clojure}
+(try
+  (/ 1 0)
+  (catch ArithmeticException e
+    (println (ex-message e))))
+;; Divide by zero
+\end{clojure}
+
+The \verb|ArithmeticException| class fails to catch some computation errors.
+What will happen if you add 1 to \verb|nil|? Even if we put the calculations in \verb|try/catch|, we won't catch the exception:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(try
+  (+ 1 nil)
+  (catch ArithmeticException e
+    (println "Weird arithmetics")))
+;;Execution error (NullPointerException)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(try
+  (+ 1 nil)
+  (catch ArithmeticException e
+    (println "Weird arithmetics")))
+;; Execution error (NullPointerException)...
+\end{clojure}
+
+\fi
+
+\index{NPE}
+
+\noindent
+That is because the \verb|ArithmeticException| and \verb|NullPointerException| classes do not overlap. They have different paths in the inheritance tree, so catching one does not affect the other. And rightly so, because the classes have different semantics. An arithmetic error is not the same as \verb|Null| instead of a value.
+
+\index{exceptions!brances}
+
+The \verb|try| form takes several \verb|catch| ones. Let's catch both cases :
+
+\begin{clojure}
+(try
+  (+ 1 nil)
+  (catch ArithmeticException e
+    (println "Weird arithmetics"))
+  (catch NullPointerException e
+    (println "You've got a null value")))
+\end{clojure}
+
+The macro iterates over the classes from each \verb|catch| and stops at the first one that matches. The \verb|try| will result in the last expression from the \verb|catch| block that matched. In the example above, the result will be \verb|nil| because \verb|println| will return it. If no branches match, the exception will continue to go up the call stack.
+
+\index{inheritance}
+
+The higher the exception class in the tree, the more cases it covers. If you replace \verb|ArithmeticException| with \verb|Throwable|, the branch will catch any exception, whether it's division by zero or \verb|NPE|:
+
+\begin{clojure}
+(try
+  (/ 1 0)
+  (+ 1 nil)
+  (catch Throwable e
+    (println "I catch everything!")))
+\end{clojure}
+
+Unlike Java, Clojure doesn't have strict rules about which exceptions to catch. That's up to you. Common sense dictates that intercepting with \verb|Throwable| should not be used: there will be a false impression that the code works without errors.
+
+In the case of \verb|ArithmeticException|, the problem is in the calculations, but for \verb|NPE|~--- it is not. \verb|Nil| instead of a number tells us that the problem is in the source, which passed \verb|nil|, and not in arithmetic. That is why catching \verb|NPE| is wrong. We'll explore this issue in detail in the chapter on tests \page{illegal-arg}.
+
+The \verb|try/catch| form with a broad scope is placed at the top level of the code. That is needed so that the program never stops. That is how web servers, message queues, and networking software work.
+
+\index{exceptions!throw}
+
+Sometimes an exception is thrown deliberately to report an abnormal situation. The \verb|new| operator creates a new Java object. Classes and constructor parameters are passed to it. The throw form takes an exception and runs the throw mechanism.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(let [e (new Exception
+          "Something is wrong!")]
+  (throw e))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(let [e (new Exception "Something is wrong!")]
+  (throw e))
+\end{clojure}
+
+\fi
+
+The message above is not informative. But even if we indicated that the problem is in arithmetic or the database, we would like to know which values exactly caused the error. For this, build the message using the \verb|format| function. It takes the template and substitution parameters:
+
+\index{clojure.core!format}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn add [a b]
+  (if (and a b)
+    (+ a b)
+    (throw
+      (new Exception
+        (format
+          "Value error, a: %s, b: %s"
+          a b)))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn add [a b]
+  (if (and a b)
+    (+ a b)
+    (let [message (format "Value error, a: %s, b: %s" a b)]
+      (throw (new Exception message)))))
+\end{clojure}
+
+\fi
+
+\noindent
+Calling \verb|add| with \verb|nil| makes the message clearer:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+;; Execution error at book.exceptions/add
+;; Value error, a: 1, b: null
+\end{clojure}
+
+\else
+
+\begin{clojure}
+Execution error at book.exceptions/add (exceptions.clj:86).
+Value error, a: 1, b: null
+\end{clojure}
+
+\fi
+
+The \verb|format| function is useful in that it displays \verb|nil| as \verb|null|. That is its advantage over \verb|str|, which converts \verb|nil| to an empty string. The \verb|str| variant looks like this:
+
+\begin{clojure}
+(str "Value error, a:" 1 ", b: " nil)
+;; Value error, a:1, b:
+\end{clojure}
+
+\noindent
+The text is misleading: is \verb|b| an empty string or \verb|nil|? In the case of \verb|format|, you won't get confused.
+
+\section{More about Context}
+
+\index{context!in exceptions}
+\index{classes!ExceptionInfo}
+
+The data in a text leads to risk. A message may be too large or disclose unnecessary information. The \verb|ExceptionInfo| class, a Clojure exception, solves this problem. It is designed to store data. Clojure offers some functions for working with it.
+
+The key \verb|ex-info| function creates an instance of \verb|ExceptionInfo|. The former takes a message and a data map. That is the context in which the exception arose. For example, if an HTTP request fails, the map will contain the method, address, and response code.
+
+\verb|Ex-info| only creates an exception; it doesn't throw it. The result is passed to \verb|throw|:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(throw (ex-info
+        "Cannot fetch user."
+        {:user-id 42
+         :http-status 404
+         :http-method "GET"
+         :http-url
+         "https://host.com/users/42"}))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(throw (ex-info
+        "Cannot fetch user."
+        {:user-id 42
+         :http-status 404
+         :http-method "GET"
+         :http-url "https://host.com/users/42"}))
+\end{clojure}
+
+\fi
+
+We have separated the message and data. The text does not reveal a user number and service address. It will be logged or sent to a user, and the context will be processed separately.
+
+Remember a few rules when working with context. A map must not be \verb|nil|. That is the rare case where Clojure distinguishes \verb|nil| from a collection. Do not store values that cannot be written to a file, such as a stream or a network connection, in a map. Ideally, the context is transmitted over the network in JSON format. We'll look at what to do with context later.
+
+The \verb|ex-data| function will return the exception data. If this is a native \verb|ExceptionInfo|, we'll get a map. For other classes, the function will return \verb|nil|.
+
+\index{exceptions!ex-data}
+
+Let's catch the exception: in the \verb|catch| form, we'll specify the \verb|ExceptionInfo| class. The \verb|ex-data| function retrieves the map that was passed to \verb|ex-info|.
+Let's split it into fields and build a message.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(try
+  (get-user 42)
+  (catch clojure.lang.ExceptionInfo e
+    (let [{:keys [http-method http-url]}
+          (ex-data e)]
+      (format "HTTP error: %s %s"
+        http-method http-url))))
+;; HTTP error: GET https://host.com...
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(try
+  (get-user 42)
+  (catch clojure.lang.ExceptionInfo e
+    (let [{:keys [http-method http-url]} (ex-data e)]
+      (format "HTTP error: %s %s" http-method http-url))))
+;; HTTP error: GET https://host.com/users/42
+\end{clojure}
+
+\fi
+
+\section{When to Throw Exceptions}
+
+It is still unclear when to throw exceptions and when to check only. Let's look at typical situations and solutions.
+
+There is no point in throwing exceptions when walking through collections. \verb|Nil| behaves like an empty collection of the type that the function accepts.
+
+\begin{clojure}
+(assoc nil :test 42)
+(update nil :test (fnil inc 0))
+(into nil [1 2 3])
+(merge nil {:test 42})
+\end{clojure}
+
+\noindent
+The expressions above should return lists and maps. The key for \verb|nil| will return \verb|nil|. Parsing a map or vector will set the variables to \verb|nil| if the fields don't match. Both of the \verb|let| directives below will create a vector of three \verb|nil| references.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(let [{:keys [a b c]} nil]
+  [a b c])
+\end{clojure}
+
+\splitter
+
+\begin{clojure}
+(let [[a b c] nil]
+  [a b c])
+\end{clojure}
+
+\else
+
+\noindent
+\begin{tabular}{ @{}p{5cm} @{}p{5cm} }
+
+\begin{clojure}
+(let [{:keys [a b c]} nil]
+  [a b c])
+\end{clojure}
+
+&
+
+\begin{clojure}
+(let [[a b c] nil]
+  [a b c])
+\end{clojure}
+
+\end{tabular}
+
+
+\fi
+
+\index{nil!punning}
+
+What does nil punning mean? It means \verb|nil| can be treated as different things in different contexts. With this approach, empty values do not cause errors. Of course, Clojure doesn't make full use of nil punning. In Clojure, \verb|nil| works with collections, but not arithmetic and regular expressions.
+
+\index{spec!valid?}
+\index{spec!conform}
+
+When in doubt about a collection, use a spec. The \verb|s/valid?| and \verb|s/conform| functions from the last chapter \page{spec-conform} will help you make sure the collection is correct. That will separate validation from data manipulation. If validation fails — throw an exception. Pass the \verb|explain| data into the context so you can parse it later.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(require '[clojure.spec.alpha :as s])
+
+(s/def ::data (s/coll-of int?))
+
+(when-let [explain (s/explain-data
+                     ::data
+                     [1 2 nil])]
+  (throw (ex-info
+           "Some item is not an integer"
+           {:explain explain})))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(require '[clojure.spec.alpha :as s])
+
+(s/def ::data (s/coll-of int?))
+
+(when-let [explain (s/explain-data ::data [1 2 nil])]
+  (throw (ex-info "Some item is not an integer"
+                  {:explain explain})))
+\end{clojure}
+
+\fi
+
+\index{spec}
+\index{spec!assert}
+
+For the sake of shortness, use the assert \verb|assert| from Spec. It does the same: validates the data and either returns it or throws an exception with \verb|explain| data. The \verb|check-asserts| global flag defines the macro behavior. If it is off, the effect of \verb|assert| disappears, and there will be no exception.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(require '[clojure.spec.alpha :as s])
+
+(s/def ::ne-string
+  (s/and string? not-empty))
+
+(s/check-asserts true)
+(s/assert ::ne-string "test") ;; ok
+
+(s/assert ::ne-string nil)
+;; Execution error - invalid arguments
+;; nil - failed: string?
+
+(s/check-asserts false)
+(s/assert ::ne-string nil) ;; nil
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(require '[clojure.spec.alpha :as s])
+
+(s/def ::ne-string (s/and string? not-empty))
+
+(s/check-asserts true)
+(s/assert ::ne-string "test") ;; ok
+
+(s/assert ::ne-string nil)
+;; Execution error - invalid arguments
+;; nil - failed: string?
+
+(s/check-asserts false)
+(s/assert ::ne-string nil) ;; nil
+\end{clojure}
+
+\fi
+
+Another case of resorting to an exception is resource failure. If the file could not be read, simply reporting this fact is not enough.
+That might have happened for various reasons: the file does not exist or is occupied by another process; there is insufficient disk space or an encoding error, etc. The error category determines what to do with it and how to prevent it from recurring.
+
+\index{HTTP!404}
+
+There is no industry consensus on whether to throw an exception on a negative HTTP response. According to the protocol, a 404 response is as correct as 200. Advanced libraries offer the flag to choose whether to throw an exception at 4xx statuses or not.
+
+Let's say our HTTP client doesn't throw an exception. Let's do it manually~--- check the status and run \verb|ex-info| with details:
+
+\index{HTTP!authentication}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn authenticate-user [user-id]
+  (let [url (str
+              "http://auth.company.com/"
+              user-id)
+        {:keys [status body]}
+        (client/get url)]
+    (if (= status 200)
+      body
+      (throw (ex-info
+               "Authentication error"
+               {:http-url url
+                :http-status status
+                :http-body body})))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn authenticate-user [user-id]
+  (let [url (str "http://auth.company.com/" user-id)
+        {:keys [status body]} (client/get url)]
+    (if (= status 200)
+      body
+      (throw (ex-info "Authentication error"
+                      {:http-url url
+                       :http-status status
+                       :http-body body})))))
+\end{clojure}
+
+\fi
+
+Exceptions are useful in libraries. Code is conventionally divided into two types: execution and coordination. Libraries are the executive code. At the library level, we don't know what semantics the code is running in. If an exception is thrown, business logic will catch it and continue running. But if you suppress errors without explanation, consumers will be dissatisfied. That also applies to the ``return \verb|nil| and write to the log'' pattern, that is, ignore the problem.
+
+\section{More about Chains}
+
+\index{exceptions!chains}
+
+Now let's see how to work with exception chains exactly. The \verb|ex-info| function takes a third optional \verb|cause| parameter. It might be \verb|nil| or another exception that will become part of the new one. Below, the \verb|divide| function catches an arithmetic error and throws a new exception with context.
+
+\index{exceptions!cause}
+
+\label{re-throw-example}
+
+\begin{clojure}
+(defn divide [a b]
+  (try
+    (/ a b)
+    (catch ArithmeticException e
+      (throw (ex-info
+               "Calculation error"
+               {:a a :b b}
+               e)))))
+\end{clojure}
+
+The \verb|ex-cause| function returns a cause of an exception. If there is no cause, we'll get \verb|nil|.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(try
+  (divide 1 0)
+  (catch Exception e
+    (println (ex-message e))
+    (println (ex-message
+               (ex-cause e)))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(try
+  (divide 1 0)
+  (catch Exception e
+    (println (ex-message e))
+    (println (ex-message (ex-cause e)))))
+\end{clojure}
+
+\fi
+
+\noindent
+The code will output:
+
+\begin{text}
+Calculation error
+Divide by zero
+\end{text}
+
+Let's write a function that returns an exception list in descending order of precedence. The original exception comes first, the cause of the exception comes second, then~--- the cause of the cause, and so on. Using the \verb|loop| shape is the simplest means of doing this:
+
+\index{iteration}
+\index{clojure.core!loop}
+\index{functions!ex-chain}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn ex-chain [e]
+  (loop [e e
+         result []]
+    (if (nil? e)
+      result
+      (recur (ex-cause e)
+        (conj result e)))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn ex-chain [e]
+  (loop [e e
+         result []]
+    (if (nil? e)
+      result
+      (recur (ex-cause e) (conj result e)))))
+\end{clojure}
+
+\fi
+
+To experiment, let's declare the variable \verb|e|. That is a three-link chain of exceptions. At the first level, there is a business logic error: Failed to retrieve user. At the second level — a problem with authorization: Not enough access rights. There is the transport error at the third one: The HTTP request returned status 403.
+
+\label{e-sample}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def e
+  (ex-info
+   "Get user info error"
+   {:user-id 42}
+   (ex-info
+     "Auth error"
+     {:token "........."}
+     (ex-info
+       "HTTP error"
+       {:method "POST"
+        :url "http://api.site.com"}))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def e
+  (ex-info
+   "Get user info error"
+   {:user-id 42}
+   (ex-info "Auth error"
+            {:token "........."}
+            (ex-info "HTTP error"
+                     {:method "POST"
+                      :url "http://api.site.com"}))))
+\end{clojure}
+
+\fi
+
+\index{collections!traversal}
+
+We got an exception tree as a result, but it is not always convenient to work with the tree. Walking through a flat structure is better. The ex-\verb|ex-chain| function we wrote will be useful for us. Here's how to get messages of all exceptions:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(map ex-message (ex-chain e))
+("Get user info error"
+ "Auth error" "HTTP error")
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(map ex-message (ex-chain e))
+("Get user info error" "Auth error" "HTTP error")
+\end{clojure}
+
+\fi
+
+\noindent
+And so~--- print line by line (we'll get a column of the same lines):
+
+\index{printing!exceptions}
+
+\begin{clojure}
+(doseq [e (ex-chain e)]
+  (-> e ex-message println))
+\end{clojure}
+
+Let's express \verb|ex-chain| in short through the \verb|iterate| function. This function applies another one to the argument step by step. We need the \verb|take-while| constraint to stop at the first empty element.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn ex-chain [^Exception e]
+  (take-while some?
+    (iterate ex-cause e)))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn ex-chain [^Exception e]
+  (take-while some? (iterate ex-cause e)))
+\end{clojure}
+
+\fi
+
+\section{Printing of Exceptions}
+
+Something went wrong, and we found ourselves in the \verb|catch| thread. The local variable indicates the exception. What can we do about it?
+
+The simplest thing is to print the exception to the console. The \verb|println| function is smart enough: it converts the exception to a map before printing. The map is easy to divide into parts, so it is convenient for editors and IDE. For example, to show only that part of the stack trace that concerns Clojure.
+
+The last exception in the chain is called the \emph{root}. For convenience, \verb|println| duplicates it to the beginning, so that we can see the root cause immediately. This is what \verb|(println e)| will output:
+
+\index{printing!exceptions}
+
+ \ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+#error {
+ :cause HTTP error
+ :data {:method POST,
+        :url http://api.site.com}
+ :via
+ [{:type clojure.lang.ExceptionInfo
+   :message Get user info error
+   :data {:user-id 42}}
+  {:type clojure.lang.ExceptionInfo
+   :message Auth error
+   :data {:token .........}}
+  {:type clojure.lang.ExceptionInfo
+   :message HTTP error
+   :data {:method POST,
+          :url http://api.site.com}}]
+ :trace
+ [[clojure.lang.AFn applyToHelper ......]
+  [clojure.lang.AFn applyTo AFn.java 144]
+  [clojure.lang.Compiler......]
+  ..........]}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+#error {
+ :cause HTTP error
+ :data {:method POST, :url http://api.site.com}
+ :via
+ [{:type clojure.lang.ExceptionInfo
+   :message Get user info error
+   :data {:user-id 42}}
+  {:type clojure.lang.ExceptionInfo
+   :message Auth error
+   :data {:token .........}}
+  {:type clojure.lang.ExceptionInfo
+   :message HTTP error
+   :data {:method POST, :url http://api.site.com}}]
+ :trace
+ [[clojure.lang.AFn applyToHelper AFn.java 156]
+  [clojure.lang.AFn applyTo AFn.java 144]
+  [clojure.lang.Compiler$InvokeExpr eval Compiler.java 3701]
+  ..........]}
+\end{clojure}
+
+\fi
+
+\index{languages!Java}
+\index{stacktrace}
+
+The \verb|:trace| vector is called a stack trace. It is a list of Java methods that the exception passed through, from being thrown to being caught. A trace element is a vector with a class, method, and file names as well as a line number.
+
+We have shortened the trace, but tracks usually take up several screens. They show the resulting Java code instead of the initial Clojure one ~--- it's confusing. Noisy traces are a fair reproach to Clojure. On the other hand, this is a common flaw of many JVM languages.
+
+\index{modules!clojure.stacktrace}
+
+The \verb|clojure.stacktrace| package has several functions for printing exceptions. \verb|Print-throwable| prints message and context:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(clojure.stacktrace/print-throwable e)
+;; clojure.lang.ExceptionInfo:
+;; Get user info error
+;; {:user-id 42}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(clojure.stacktrace/print-throwable e)
+clojure.lang.ExceptionInfo: Get user info error
+{:user-id 42}
+\end{clojure}
+
+\fi
+
+The \verb|with-out-str| macro intercepts the output to the console. The code below does not print anything, but it will return the string:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(with-out-str
+  (clojure.stacktrace/print-stack-trace
+    e))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(with-out-str
+  (clojure.stacktrace/print-stack-trace e))
+\end{clojure}
+
+\fi
+
+The \texttt{print\--stack\--trace} and \texttt{print\--cause\--trace} functions
+print a~trace with slight differences. They take the \verb|n| parameter
+to~specify the depth of the trace.
+
+\section{Logging}
+
+\index{logging}
+
+Console output helps in debugging, but, in a production run, it is not good. Here's what you can expect from code that catches exceptions.
+
+The auxiliary data (time, module, process number) of any message is important to us. Messages differ in importance: informational, warning, alarm, and others. This information is not printed, and if you collect it manually, the code grows.
+
+When the program runs on multiple servers, message collection is centralized. Imagine an employee switching between hundreds of machines to read logs - that is no good. If the message came over the network, you need to remember the source address.
+
+Not all messages are of equal importance. Sometimes libraries generate hundreds of debug messages per minute. We need an algorithm to drop them for specific reasons.
+
+Plus, the console and file aren't the only data feeds. Especially important messages need to be written to the operating system log, sent to email and chatbots, or people in charge as text messages.
+
+Logging solves the above problems. This system gets messages and sends them to the required channels. The \verb|clojure.tools.logging| library offers functions and macros to log messages. That is a third-party project, so add the dependency:
+
+\index{libraries!clojure.tools.logging}
+
+\begin{clojure}
+[org.clojure/tools.logging "0.4.1"]
+\end{clojure}
+
+\noindent
+Let's write a simple message:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(require
+  '[clojure.tools.logging :as log])
+(log/info "A message from my module")
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(require '[clojure.tools.logging :as log])
+(log/info "A message from my module")
+\end{clojure}
+
+\fi
+
+\noindent
+A line will appear in REPL. By default, the log adds a severity level. In our case, this is an informational message, \verb|INFO|.
+
+\begin{text}
+INFO: A message from my module
+\end{text}
+
+Clojure logging has two levels. The first one is the entry point, the \verb|log/info|, \verb|log/error|, and other macros. The second level is called the backend. It is a Java library that does the bulk of the work: writes messages to files, sends them over the network, and so on.
+
+Such a structure has advantages. Historically, many logging libraries have written for Java. Each of them offers its classes and methods. If the project uses a particular Java backend, you won't be able to change it without code editing.
+
+\index{logging!backends}
+\index{libraries!Logback}
+\index{libraries!Log4j}
+
+In Clojure, this problem was solved by design. At startup, the \verb|logging| module looks for the \verb|Logback|, \verb|Log4j|, and other libraries. If not, it uses the standard \verb|java.util.logging|. The \verb|log/info|call boils down to calling a class from the found library.
+
+To pick up the required backend, add it to the dependencies. The \verb|Logback| project is especially popular. It has a large selection of \emph{appenders}, unlike its analogs. An appender determines the destination where to write messages. It may be a file, a remote syslog, or a mail server.
+
+Add Logback to your project:
+
+\begin{clojure}
+[ch.qos.logback/logback-classic "1.2.3"]
+\end{clojure}
+
+\index{formats!XML}
+
+Logging libraries look for settings in standard locations. If you put an XML file in the \verb|resources| folder, the backend will read it at the start. Write the following \verb|logback.xml| file there:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{xml}
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <appender name="STDOUT"
+    class="...ConsoleAppender">
+    <encoder>
+      <charset>UTF-8</charset>
+      <pattern>
+  %date %-5level %logger{36} - %msg %n
+      </pattern>
+    </encoder>
+  </appender>
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>
+\end{xml}
+
+\else
+
+\begin{xml}
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <appender name="STDOUT" class="...ConsoleAppender">
+    <encoder>
+      <charset>UTF-8</charset>
+      <pattern>%date %-5level %logger{36} - %msg %n</pattern>
+    </encoder>
+  </appender>
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>
+\end{xml}
+
+\fi
+
+\index{dates!in logs}
+
+So, we have set the appender to output to the console. The \verb|pattern| tag contains a message template. Template parameters start with a percent sign. Substitution \verb|\%msg| stands for a message, \verb|\%date| ~--- for the current date. Its format is specified in curly braces, for example, \verb|%date{ISO8601}|. Log something with new settings. The output will change:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(log/info "Hello Logback!")
+;; 2019-05-03 17:36:04,001
+;; INFO book.exceptions - Hello Logback!
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(log/info "Hello Logback!")
+;; 2019-05-03 17:36:04,001 INFO book.exceptions - Hello Logback!
+\end{clojure}
+
+\fi
+
+\label{log-ex-param}
+
+The \verb|log/info|, \verb|log/error|, and other macros first argument might be not a text, but an exception. Above, we have declared the variable \verb|e| for experimentation. Let's write it to the log:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(log/error e "HTTP Error")
+
+;; 2019-05-03 17:41:03,913
+;; ERROR book.exceptions - HTTP Error
+;; clojure.lang.ExceptionInfo:
+;; Get user info error
+;; at java.lang.Thread.run .........
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(log/error e "HTTP Error")
+
+2019-05-03 17:41:03,913 ERROR book.exceptions - HTTP Error
+clojure.lang.ExceptionInfo: Get user info error
+    at java.lang.Thread.run(Thread.java:745)
+Caused by: clojure.lang.ExceptionInfo: Auth error
+    at clojure.lang.Compiler$InvokeExpr.eval(Compiler.java:3701)
+    ... 30 common frames omitted
+Caused by: clojure.lang.ExceptionInfo: HTTP error
+    at clojure.lang.Compiler$InvokeExpr.eval(Compiler.java:3701)
+    ... 31 common frames omitted
+\end{clojure}
+
+\fi
+
+To save space, we have removed part of the trace. From the example, you can see the chain consists of three links, which we specified as \verb|e|. But each link has lost data! The problem is that Logback is unaware that the \verb|data| field of the \verb|ExceptionInfo| class is so important to us.
+
+\index{logging!exception}
+
+The library offers several templates for exceptions (\verb|%xEx|, \verb|%xException|, and others). They affect the length and detail of the trace but ignore data. Log4j and other projects behave similarly.
+
+In Java, the problem is solved with a new class. Typically, the logging backend offers a class that converts the exception into a string. Create a descendant class and modify the request method there. Set the new class path in logging settings.
+
+The method works in Clojure as well, but with some problems. Clojure requires a separate module with the \verb|:gen-class| directive to inherit a class. You will have to read the library documentation, and explore the classes and interfaces. The decision will depend on the specific backend. Switching to Log4 will force us to inherit from another class. There is another way you can follow in Clojure.
+
+Let's write a function for logging errors. This wrapper over \verb|log/error| changes something: it converts the exception to text before writing to the log, which is convenient for us. To collect error data, let's build an exception chain using \verb|ex-chain|. The \verb|ex-print| function runs over it and prints the data to the console.
+
+\index{printing!exceptions}
+\index{functions!ex-print}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn ex-print
+  [^Throwable e]
+  (let [indent "  "]
+    (doseq [e (ex-chain e)]
+      (println (-> e
+                   class
+                   .getCanonicalName))
+      (print indent)
+      (println (ex-message e))
+      (when-let [data (ex-data e)]
+        (print indent)
+        (clojure.pprint/pprint data)))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn ex-print
+  [^Throwable e]
+  (let [indent "  "]
+    (doseq [e (ex-chain e)]
+      (println (-> e class .getCanonicalName))
+      (print indent)
+      (println (ex-message e))
+      (when-let [data (ex-data e)]
+        (print indent)
+        (clojure.pprint/pprint data)))))
+\end{clojure}
+
+\fi
+
+The result looks more attractive than the trace pyramid. The data that led to the error is more visible:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+clojure.lang.ExceptionInfo
+  Get user info error
+  {:user-id 42}
+clojure.lang.ExceptionInfo
+  Auth error
+  {:token "........."}
+clojure.lang.ExceptionInfo
+  HTTP error
+  {:method "POST",
+   :url "http://api.site.com"}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+clojure.lang.ExceptionInfo
+  Get user info error
+  {:user-id 42}
+clojure.lang.ExceptionInfo
+  Auth error
+  {:token "........."}
+clojure.lang.ExceptionInfo
+  HTTP error
+  {:method "POST", :url "http://api.site.com"}
+\end{clojure}
+
+\fi
+
+\index{printing!interception}
+\index{clojure.core!with-out-str}
+
+To intercept printing to the screen, we wrap the call of \verb|ex-print| in \verb|with-out-str|:
+
+\begin{clojure}
+(defn log-error
+  [^Throwable e & [^String message]]
+  (log/error
+   (with-out-str
+     (println (or message "Error"))
+     (ex-print e))))
+\end{clojure}
+
+We pass a message to \verb|log-error| as the second argument. If it does not exist, write a neutral Error. To prevent the message and body from sticking together, we use \verb|println| to break a line. Here are some examples:
+
+\begin{clojure}
+(log-error e)
+(log-error e "HTTP Error 500")
+\end{clojure}
+
+The second call will log the following:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{text}
+2019-05-03 19:00:05,590 ERROR
+book.exceptions - HTTP Error 500
+clojure.lang.ExceptionInfo
+  Get user info error
+  ...
+\end{text}
+
+\else
+
+\begin{text}
+2019-05-03 19:00:05,590 ERROR book.exceptions - HTTP Error 500
+clojure.lang.ExceptionInfo
+  Get user info error
+  ...
+\end{text}
+
+\fi
+
+Modify the \verb|log-error| so that the message will be a template, and the function will take substitution parameters:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(log-error e
+  "Cannot find user %s, status %s"
+  42 404)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(log-error e "Cannot find user %s, status %s" 42 404)
+\end{clojure}
+
+\fi
+
+Error messages are separate from other entries. There are at least two appenders for this: ConsoleAppender and FileAppender. All messages are output to the console to keep the programmer informed. Errors require a response so they are written to a file or sent over the network. Later we analyze them manually or with special programs.
+
+In the chapter on mutability, we'll show you how to boil down the \verb|log/error| macro to calling \verb|log-error| \page{install-logger}. This way, we get rid of importing \verb|log-error| into each module where an error is logged. However, it is too early to talk about it now.
+
+\section{Collecting Exceptions}
+
+\index{exceptions!collecting}
+
+We've figured out how to express an exception as text. Now you can write it to a file, send it by email or even print it. A disadvantage to text is that it is not structured. From a code point of view, this is a stream of characters, and it is not clear where things are. When collecting errors, it is crucial to distinguish data type, subsystem, and module. They are necessary for the following reasons.
+
+\textbf{Prevent duplication.} During an influx of customers, we might find an error that did not notice before. If we write it to a file every time, we get a ton of identical messages. That is resource-intensive and makes it difficult to find errors.
+
+A collector determines the error similarity according to special rules. The ``user1 not found'' and ``user2 not found'' messages are slightly different, but the collector will combine them into one entry and show the rest when requested.
+
+\textbf{Search.} You cannot build an efficient search without a structure.
+When errors are in the form of text, you can search only by the occurrence of a word or regular expression. This search is not relevant; it ignores how closely the item matches the request. It also does not cut out duplicates: we run the risk of being overwhelmed by identical messages in the search results.
+
+\textbf{Statistics.} When we have identified error parts, we can build reports on them. For example, we can find out how many errors happened in the last month or year, or group data by projects or teams, or identify projects where mistakes happen most often.
+
+\textbf{Knowledge base.} In a collection system, every error becomes an artifact. They write comments to it, attach screenshots and screen recordings. You can refer to an error in a task or review. If exceptions are logged, these options are not available.
+
+\index{databases!Sentry}
+
+\footurl{Sentry}{https://sentry.io}[Sentry][-0mm], a web application based on Django, looks decent compared to other systems. One uses it to create projects that accumulate customer errors. To send an error to Sentry, use the HTTP POST method. Its body contains JSON with various fields. Sentry offers dozens of fields to describe an error with. They are for parameters of a machine, an operating system, HTTP request details, a stack trace, and others.
+
+\index{libraries!Sentry-clj}
+
+An application does not collect these data on its own but rather uses libraries. They are often called Raven or similar. It's like a pun~--- a \emph{raven} carries news to a \emph{sentry}.
+
+\footurl{Sentry-clj}{https://github.com/getsentry/sentry-clj}[Sentry-clj][-22mm] and \footurl{Exoscale Raven}{https://github.com/exoscale/raven}[Exoscale Raven] libraries are written for Clojure. The former relies on the official Java library. Add it to your project:
+
+\begin{clojure}
+[io.sentry/sentry-clj "0.7.2"]
+\end{clojure}
+
+\index{DSN}
+
+Set the required DSN to the library. DSN is a project address in Sentry. The project combines messages according to the main feature: backend errors will be in one project, front-end errors~--- in the second one, mobile appl's~--- in the third. DSN is in the project settings of the Integration section.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(require '[sentry-clj.core :as sentry])
+
+(def DSN
+ "https://user:pass@sentry.io/projectid")
+(sentry/init! DSN)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(require '[sentry-clj.core :as sentry])
+
+(def DSN "https://user:pass@sentry.io/project-id")
+(sentry/init! DSN)
+\end{clojure}
+
+\fi
+
+Once the library knows the DSN, send the message using the \verb|send-event| function. We're especially interested in the \verb|:throwable| parameter that gets an exception.
+
+\begin{clojure}
+(sentry/send-event {:throwable e})
+\end{clojure}
+
+In response, we will receive the event number, and a new entry will appear in the project.
+Suppose we passed in an instance of \verb|e|~--- the chain of three exceptions~--- that we've defined above \page{e-sample}. In the Sentry interface, we will see information about each link. The \verb|:extra| field will contain the data of the top-level exception~--- the map \verb|{:user-id 42}|.
+
+\verb|Sentry-clj| does not transmit the entire context; this is its drawback. We would like to see data from all levels, not just the top one. Otherwise, we will not know what the token was, at what address we tried to access the network, and other details. It is possible to collect data manually and pass it to the \verb|:extra| key, but this will increase the code.
+
+\index{libraries!Raven}
+
+The Exoscale Raven library is written in Clojure and therefore takes the language nuances into account. Starting with the recently released version, it transmits the complete exception data. Include it in the project and send an exception \verb|e|:
+
+\begin{clojure}
+[exoscale/raven "0.4.13"] ;; project.clj
+
+(require '[raven.client :as raven])
+(raven/capture! DSN e)
+\end{clojure}
+
+\begin{listing}[ht!]
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{json}
+[ {
+  "type": "clojure.lang.ExceptionInfo",
+  "message": "Get user info error",
+  "data": {
+    "user-id": 42
+  },
+  "at": ["clojure.lang.AFn",
+         "applyToHelper", "AFn.java"...]
+}, {
+  "type": "clojure.lang.ExceptionInfo",
+  "message": "Auth error",
+  "data": {
+    "token": "........."
+  },
+  "at": ["clojure.lang.AFn",
+         "applyToHelper", "AFn.java"...]
+} ]
+\end{json}
+
+\else
+
+\begin{json}
+[ {
+  "type": "clojure.lang.ExceptionInfo",
+  "message": "Get user info error",
+  "data": {
+    "user-id": 42
+  },
+  "at": ["clojure.lang.AFn", "applyToHelper", "AFn.java", 160]
+}, {
+  "type": "clojure.lang.ExceptionInfo",
+  "message": "Auth error",
+  "data": {
+    "token": "........."
+  },
+  "at": ["clojure.lang.AFn", "applyToHelper", "AFn.java", 160]
+} ]
+\end{json}
+
+\fi
+
+  \caption{Sample of exception JSON-data}
+  \label{fig:ex-json-data}
+\end{listing}
+
+Open the event in Sentry and scroll down. In the \verb|extra| section, the \verb|:via| key with detailed information will appear. Below is a snippet of it \lis{fig:ex-json-data}. Each map consists of an exception class, message, and data. In the \verb|:at| field is a vector of four elements: a class, a method, a filename, and the line where an exception was thrown. Such a report makes it easier to find the cause.
+
+\index{clojure.core!Throwable\arr{}map}
+
+We obtained the structure above with the \texttt{Throw\-able->map} function. It takes an exception and returns a map with the \verb|:via|, \verb|:cause|, and other keys.
+Map items are strings and characters, so the result can be easily written in JSON or EDN formats.
+
+\section{Sentry and Ring}
+
+\index{Ring!Sentry}
+
+Now that you are familiar with Sentry, let's write a protective decorator for a Ring application. It catches errors, sends them to Sentry, and returns a neutral response that the request failed. The decorator should be at the top of the middleware stack.
+
+\begin{clojure/lines*}{firstnumber=1}
+(require '[raven.client :as r])
+
+(defn wrap-exception
+  [handler]
+  (fn [request]
+    (try
+      (handler request)
+\end{clojure/lines*}
+
+\wavebottom
+
+Please note that the request to Sentry is also wrapped in \verb|try/catch|. Since Sentry is a third-party service, it may be unavailable at times. In this case, both exceptions are logged: the primary one and the one related to Sentry.
+If you need to brush up on how middleware and decorators work, go back to the chapter on web development \page{decorator}.
+
+\wavetop
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure/lines*}{firstnumber=8}
+(catch Exception e
+  (let [event
+        (-> nil
+            (r/add-exception! e)
+            (r/add-ring-request!
+              request)
+            (r/add-extra!
+              {:something "else"}))]
+    (try @(r/capture! DSN event))))
+\end{clojure/lines*}
+
+\else
+
+\begin{clojure/lines*}{firstnumber=8}
+      (catch Exception e
+        (let [event (-> nil
+                        (r/add-exception! e)
+                        (r/add-ring-request! request)
+                        (r/add-extra! {:something "else"}))]
+          (try
+            @(r/capture! DSN event))))
+\end{clojure/lines*}
+
+\fi
+
+\wavebottom
+
+For the sake of completeness, we are passing to Sentry not just an exception, but an event \coderef{9}. We add an exception, a Ring request, and arbitrary data to it. The \verb|(r/add-<something>)| functions supplement the event with various fields. Raven offers functions to add tags, users and other entities.
+
+\wavetop
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure/lines*}{firstnumber=17}
+(catch Exception e-sentry
+  (log/errorf e-sentry
+    "Sentry error: %s" DSN)
+  (log/error e "Request failed"))
+(finally
+  {:status 500
+   :body  "Internal error, please try
+   later"})))))))
+\end{clojure/lines*}
+
+\else
+
+\begin{clojure/lines*}{firstnumber=15}
+            (catch Exception e-sentry
+              (log/errorf e-sentry "Sentry error: %s" DSN)
+              (log/error e "Request failed"))
+            (finally
+              {:status 500
+               :body "Internal error, please try later"})))))))
+\end{clojure/lines*}
+
+\fi
+
+\index{libraries!Manifold}
+\index{asynchrony}
+\index{syntax!@ (deref)}
+
+Let me explain the \verb|@| operator before calling \verb|r/capture!| \ifx\DEVICETYPE\MOBILE\coderef{16}\else\coderef{14}\fi. The function works asynchronously due to the Manifold library. The result is a special \verb|deferred| object which acts as the Java Future object. We won't know about an error until we dereference the former. We'll encounter the \verb|@| operator in following chapters.
+
+In production systems, one doesn't usually do the dereference of \verb|deferred| objects but wraps them in \verb|d/catch| and \verb|d/chain| macros~--- asynchronous analogs of \verb|catch| and the arrow operator \arr{}. Programming in Manifold is a separate topic; we won't touch on it in this book.
+
+\section{Jumping Code}
+
+\index{exceptions!jumps}
+\index{GOTO}
+
+Until now, we have regarded an exception as an error signal. Recall the fundamental property of an exception~--- it interrupts the program flow and floats up until it is caught. Sometimes you can use that to move up the stack. If we throw the conditional \verb|MyGOTOException| and, at the top, put \verb|catch| with this class, we'll get the \verb|GOTO| operator:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure/lines}
+(try
+  (do-step-1)
+  (do-step-2)
+  (when (condition)
+    (throw (new MyGOTOException)))
+  (do-step-3)
+  (catch MyGOTOException e
+    (println "The third step
+                  has been skipped")))
+\end{clojure/lines}
+
+\else
+
+\begin{clojure/lines}
+(try
+  (do-step-1)
+  (do-step-2)
+  (when (condition)
+    (throw (new MyGOTOException)))
+  (do-step-3)
+  (catch MyGOTOException e
+    (println "The third step has been skipped")))
+\end{clojure/lines}
+
+\fi
+
+If \verb|(condition)| in the fourth line returns true, we'll skip the third
+step. This is known as the ``exception as a control flow mechanism''
+technique. The method is controversial; use it carefully. Code becomes obscure
+and difficult to maintain.
+
+\index{imperative style}
+
+Still, there are times when you need to interrupt execution. For example, we have found that a user does not have access rights to the resource. Let's complicate the task: let there be several checks, and you need to cancel each request.
+Writing in imperative languages, this is easy to solve. Python code might look like this:
+
+\index{languages!Python}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{python}
+class AccountHandler(RequestHandler):
+  def on_get(self, request):
+    if not self.check_params(request):
+      return BadRequest("Wrong input")
+    if not self.check_account(request):
+      return NotFound("No such an acc")
+    if not self.check_quotas(request):
+      return QuotasReached("Request " + \
+             "rate is limited")
+    return JSONResponse(self.get_data())
+\end{python}
+
+\else
+
+\begin{python}
+class AccountHandler(RequestHandler):
+  def on_get(self, request):
+    if not self.check_params(request):
+      return BadRequest("Wrong input data")
+    if not self.check_account(request):
+      return NotFound("No such an account")
+    if not self.check_quotas(request):
+      return QuotasReached("Request rate is limited")
+    return JSONResponse(self.get_data_from_db())
+\end{python}
+
+\fi
+
+There is no \verb|return| statement in Clojure. The result of multiple forms is the result of the last one. We cannot place multiple \verb|when| on the same level, one below the other. Even if only one of them returns false, execution will go to the next form.
+
+\index{Pyramid of Doom}
+
+The \verb|if/else| cascade works, but looks unwieldy. It is not called the pyramid of doom for nothing. The deeper the nesting, the more problems the developer has. For fun, add a conditional to the middle of the Clojure code \lis{fig:clj-pyramid}
+
+\begin{listing}[ht!]
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn account-handler [request]
+  (if (check-this request)
+    (if (check-that request)
+      (if (check-quotas request)
+        {:status 200
+         :body (get-data-from-db)}
+        (quotas-reached
+          "Request rate is limited"))
+      (not-found "No such an account"))
+    (bad-request "Wrong input data")))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn account-handler [request]
+  (if (check-this request)
+    (if (check-that request)
+      (if (check-quotas request)
+        {:status 200
+         :body (get-data-from-db)}
+        (quotas-reached "Request rate is limited"))
+      (not-found "No such an account"))
+    (bad-request "Wrong input data")))
+\end{clojure}
+
+\fi
+
+\caption{Clojure Pyramid Example}
+\label{fig:clj-pyramid}
+
+\end{listing}
+
+\index{libraries!Ring HTTP Response}
+\index{organisations!Metosin}
+
+You can solve the pyramid problem in different ways, including exceptions. The Ring HTTP Response library offers functions to throw HTTP response exceptions. A decorator is added to the middleware to catch such exceptions and return a response composed of them. Add the library to your project:
+
+\begin{clojure}
+[metosin/ring-http-response "0.9.1"]
+\end{clojure}
+
+Let's rewrite \verb|account-handler| in this way:
+%% Напишем \verb|account-handler| по-другому:
+%% TODO
+
+\index{modules!ring.util.http-response}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(require '[ring.util.http-response
+           :refer [not-found!
+                   bad-request!
+                   enhance-your-calm!]])
+
+(defn account-handler [request]
+  (when-not (check-params request)
+    (bad-request! "Wrong input data"))
+  (when-not (check-account request)
+    (not-found! "No such an account"))
+  (when-not (check-quotas request)
+    (enhance-your-calm!
+      "Request rate is limited"))
+  {:status 200
+   :body (get-data-from-db)})
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(require '[ring.util.http-response
+           :refer [not-found!
+                   bad-request!
+                   enhance-your-calm!]])
+
+(defn account-handler [request]
+  (when-not (check-params request)
+    (bad-request! "Wrong input data"))
+  (when-not (check-account request)
+    (not-found! "No such an account"))
+  (when-not (check-quotas request)
+    (enhance-your-calm! "Request rate is limited"))
+  {:status 200
+   :body (get-data-from-db)})
+\end{clojure}
+
+\fi
+
+Our new code is similar to the imperative one. Some people are unhappy that Clojure uses an imperative approach. Never mind. Our job is to make the code maintainable. Loyalty to the paradigm doesn't matter here.
+
+Functions of the texttt{ring.util.http\--res\-ponse} module are available with and without an exclamation mark. It signals that a function throws an exception. For example, \verb|not-found!| will return the \verb|ex-info| which body contains an HTTP response with a 404 status.
+
+\index{HTTP!404}
+
+To make the scheme work, let's add the \verb|wrap-http-response| decorator. It catches errors from functions with an exclamation mark, extracts an answer from them, and returns it to a client.
+
+\begin{clojure}
+(require '[ring.middleware.http-response
+           :refer [wrap-http-response]])
+
+(def app
+  (-> app-naked
+      wrap-params
+      wrap-session
+      wrap-cookies
+      wrap-http-response))
+\end{clojure}
+
+Try to use code jumping only as a last resort: if you win something with it~--- shorten the code or quickly solve the problem. If you have to take this step, use the library to refer to examples and documentation.
+
+\index{finally}
+\index{context manager}
+
+\section{Finally Form and Context Manager}
+
+Sometimes the code is executed within a resource. It might be a file, socket, or a database transaction. At the beginning of work, one ``opens'' the resource and~--- at the end~--- ``closes'' it. An open resource is considered busy. When a resource is busy, other clients cannot make full use of it. You can read someone's open file, but can't change it.
+
+Close the resource as soon as you no longer need it. An error can prevent this. If the code working with the resource does not catch the exception, the file or port will remain open until the end of the work. To close the resource even in the error event, resort to the \verb|finally| form.
+
+It is placed last in the \verb|try| block. If there is no error, the \verb|finally| form is executed after the main code of \verb|try|. If an exception arises, \verb|finally| will perform between its occurrence and throwing.
+
+Let's take a look at manual access to a file: write a few bytes to it. \verb|Finally| ensures that the file will close even though an exception is thrown in the process \lis{fig:write-file}.
+
+\begin{listing}[ht!]
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(import '[java.io File FileWriter])
+
+(let [out (new FileWriter
+            (new File "test.txt"))]
+  (try
+    (.write out "Hello")
+    (.write out " ")
+    (.write out "Clojure")
+    (finally
+      (.close out))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(import '[java.io File FileWriter])
+
+(let [out (new FileWriter (new File "test.txt"))]
+  (try
+    (.write out "Hello")
+    (.write out " ")
+    (.write out "Clojure")
+    (finally
+      (.close out))))
+\end{clojure}
+
+\fi
+
+\caption{Manual file handling}
+\label{fig:write-file}
+
+\end{listing}
+
+Today's languages offer context managers, so you don't forget to close the file. A manager can be a class, operator, or macro.
+The manager executes a block of code with additional effects. The entry logic is triggered before the block, and the exit logic~--- after it. The exit logic will take control even if the block has thrown an exception.
+The platform will hold it, execute the exit code, and throw it again.
+
+\index{languages!Python}
+
+The Python manager is remarkably elegant. It is the \verb|with| statement that expects an object. The object must have the \verb|__enter__| and~\verb|__exit__| methods that will work when entering and exiting. You can use the \verb|with| statement for files, database transactions, and test fixtures. Here's an example with a file:
+
+\index{files}
+
+\begin{python}
+with open("/path/to/file.txt", "w") as f:
+    f.write("test")
+\end{python}
+
+Let's write a similar manager for Clojure. It is a macro that takes a symbol and a file path. Within a macro, a file is bound with a symbol. \verb|Finally| ensures the file will close when exiting the block.
+
+\index{classes!FileWriter}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defmacro with-file-writer
+  [[bind path] & body]
+  `(let [~bind (new FileWriter
+                 (new File ~path))]
+     (try
+       ~@body
+       (finally
+         (.close ~bind)))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defmacro with-file-writer
+  [[bind path] & body]
+  `(let [~bind (new FileWriter (new File ~path))]
+     (try
+       ~@body
+       (finally
+         (.close ~bind)))))
+\end{clojure}
+
+\fi
+
+Execute the code and check the \verb|test.txt| file:
+
+\begin{clojure}
+(with-file-writer [out "test.txt"]
+  (.write out "Hello macro!")
+  (\ 0 0))
+\end{clojure}
+
+Context managers' name begins with the prefix \verb|with-|. So they emphasize that the code works within the resource.
+
+\index{clojure.core!with-open}
+
+Clojure provides the \verb|with-open| macro. It is an improved version of the code we have written. Unlike our example, \verb|with-open| works with a more abstract source, including a file. Exiting the macro, even with an error, closes the resource.
+
+There is no point in using \verb|finally| when working with collections or pure functions. Use it only when you need to free a busy resource.
+
+\section{Exceptions and Predicates}
+
+\index{exceptions!predicates}
+\index{predicates!in exceptions}
+
+The \verb|try/catch| system works based on classes and inheritance. If you need to catch a particular exception, write a class and throw an instance of it. A typical Java or Python project carries a module with exceptions.
+The base class \verb|ProjectException| and inherited from it \verb|UserNotFound|, \verb|AccessDenied|, and others are among them. It is a manually written homogeneous code.
+
+\index{libraries!Slingshot}
+
+In the chapter on Spec, we've said that predicates were more powerful than types \page{type-and-pred}. The same is true for exceptions: if you can catch them with a function, you don't need a class. The \footurl{Slingshot}{https://github.com/scgilardi/slingshot}[Slingshot][-6mm] library offers a predicate approach. There are improved versions of \verb|try|, \verb|catch| and \verb|throw|in Slingshot.
+
+\index{fundamentality}
+
+Those who are not familiar with Clojure will be surprised: you can change even such fundamental things as catching exceptions with the help of macros in it. In other languages, such changes have been waiting for years. In Clojure, you just need to use a library.
+
+\index{macros!try\Plus}
+\index{macros!throw\Plus}
+
+Slingshot contains the \verb|throw+| and \verb|try+| macros. They are compatible with regular \verb|throw| and \verb|try|; if you replace the usual forms with the plus versions, nothing changes. However, these new forms bring benefits.
+
+The \verb|throw+| macro accepts any object, not just an exception. A map works best: it combines multiple values in keys. The code below will throw \verb|ex-info| with the given dictionary:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(require
+  '[slingshot.slingshot
+    :refer [try+ throw+]])
+
+(throw+ {:user-id 42 :action :create})
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(require '[slingshot.slingshot :refer [try+ throw+]])
+
+(throw+ {:user-id 42 :action :create})
+\end{clojure}
+
+\fi
+
+\verb|Throw+| takes an object, a cause exception, a message template, and substitution parameters. Note: the order of the arguments is different from \verb|ex-info|.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(let [path "/var/lib/file.txt"]
+  (try
+    (slurp path)
+    (catch Exception e
+      (throw+ {:path path} e
+      "File error: %s" path))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(let [path "/var/lib/file.txt"]
+  (try
+    (slurp path)
+    (catch Exception e
+      (throw+ {:path path} e "File error: %s" path))))
+\end{clojure}
+
+\fi
+
+\index{predicates!in exceptions}
+
+The \verb|catch| form inside \verb|try+| catches exceptions not only with classes. Slingshot offers selectors and predicates for that. Here, a selector is a vector: its odd element is a map key, and even one is a value. The selector checks if keys and values are included in the context. If so, control passes to the branch with that selector.
+
+\begin{clojure/lines}
+(try+
+ (throw+ {:type ::user-error
+          :user 42
+          :action :update
+          :data {:name "Ivan"}})
+ (catch [:type ::user-error] e
+   (clojure.pprint/pprint e)))
+\end{clojure/lines}
+
+When the map is thrown, add the \verb|:type| field \coderef{2}. It specifies a key with the current space, in our case~--- \verb|::user-error|.
+When catching exceptions in another module, the selector looks like this: \spverb|[:type :book.exceptions/user-error]|. The namespace guarantees that we will not intercept \texttt{:user\--error} of someone else's library.
+
+The example above should print a thrown map. The variable \verb|e|, which is inside \verb|catch|, does not link to the exception, but the data we passed to \verb|throw+|.
+
+Instead of a selector, we can use a predicate, a function of one argument. If the error class is \verb|ExceptionInfo|, the predicate will get a data map; otherwise, an exception object. The function should take into account an argument type. When the predicate returns true, control will pass to its \verb|catch| branch.
+
+\index{services!Amazon S3}
+
+Use predicates when you need fine tuned interception conditions. Let's see how to upload a file to Amazon S3. In special situations, Java SDK throws an exception after the file is loaded (if the checksums do not match). We have to delete the unsuccessfully uploaded file so as not to waste space.
+
+Unfortunately, there is neither the \verb|ChecksumError| class nor an equivalent in SDK. Instead, we'll receive a regular \verb|AmazonS3Exception| with a long text. To highlight our case, let's compare the message with the template. Let's take the check into the function:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn aws-checksum-error? [e]
+  (and
+    (instance? AmazonS3Exception e)
+    (some?
+      (re-find
+        #"(?i)The Content-Md5
+            you specified did not match"
+        (ex-message e)))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn aws-checksum-error? [e]
+  (and (instance? AmazonS3Exception e)
+       (some?
+        (re-find
+         #"(?i)The Content-Md5 you specified did not match"
+         (ex-message e)))))
+\end{clojure}
+
+\fi
+
+\noindent
+We should put it in \verb|try+| to catch the checksum case:
+
+\begin{clojure}
+(try+
+  (s3/put-object ...)
+  (catch aws-checksum-error? e
+    (s3/delete-object ...)))
+\end{clojure}
+
+\footurl{Clj-http}{https://github.com/dakrone/clj-http}[Clj-http], a popular HTTP client for Clojure, uses Slingshot. In case of an error, it throws a response with \verb|throw+|. If we wrap the request in \verb|try+|, we'll get a more detailed analysis of errors. For example, we can get separate branches for status 500 and for the general negative response.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(require '[clj-http.client :as client])
+
+(try+
+ (client/get "http://example.com/test")
+ (catch [:status 500] e
+  (println "The service is unavailable"))
+ (catch
+  [:type :client/unexceptional-status] e
+  (println "Negative response")))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(require '[clj-http.client :as client])
+
+(try+
+ (client/get "http://example.com/test")
+ (catch [:status 500] e
+   (println "The service is unavailable"))
+ (catch [:type :client/unexceptional-status] e
+   (println "Negative response")))
+\end{clojure}
+
+\fi
+
+Slingshot relies on data, not classes, as Clojure encourages. Benefits of this approach are not always apparent to newbies. It is helpful to understand the usual \verb|try/catch| method first. Include Slingshot only if it makes sense to do so.
+
+\index{libraries!Ex}
+\index{organisations!Exoscale}
+
+Slingshot is not the only example of exceptions for Clojure. Pay attention to \footurl{Ex}{https://github.com/exoscale/ex}[Ex][-3mm]~--- the analog we use at Exoscale.
+That library allows for the semantics of the keys (\verb|:fault|, \verb|:conflict|), and their inheritance, supports Manifold, and much more.
+
+\section{ Techniques and Functions }
+
+Let's look at several techniques for exceptions. They are simple, so you shouldn't put them in a separate library. They are usually copied from a project to a project with some changes.
+
+\index{languages!Lua}
+
+\label{pcall}
+
+\textbf{Safe function call.} Lua language has no \verb|try| and \verb|catch| statements. To make the call safe from error, use the \footurl{\texttt{pcall}}{https://www.lua.org/pil/8.4.html}[Lua pcall][-3mm] operator. It is short for a protected call. Sometimes this technique is useful in Clojure, too.
+
+\verb|Pcall| takes a function and arguments and returns a pair of values. The first of them signifies a successful execution. If it is true, the second value will be the result of the computation, otherwise~--- an error instance. Clojure version:
+
+\index{functions!pcall}
+
+\begin{clojure}
+(defn pcall [f & args]
+  (try
+    [true (apply f args)]
+    (catch Exception e [false e])))
+\end{clojure}
+
+To make the result more concise, process it with \verb|let|:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(let [[ok? result-error] (pcall inc 1)]
+  (if ok?
+    (println
+      (str "The result is "
+        result-error))
+    (println "Failure")))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(let [[ok? result-error] (pcall inc 1)]
+  (if ok?
+    (println (str "The result is " result-error))
+    (println "Failure")))
+\end{clojure}
+
+\fi
+
+\index{languages!JavaScript}
+
+A different semantics is popular in JavaScript: callback functions take the \verb|error| and \verb|result| arguments. The \verb|pcall-js| function is a modified version of \verb|pcall| that returns an \tuple {error, result} pair.
+
+\begin{clojure}
+(defn pcall-js [f & args]
+  (try
+    [nil (apply f args)]
+    (catch Exception e [e nil])))
+\end{clojure}
+
+\noindent
+The split looks different:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(let [[e user]
+      (pcall-js get-user-by-id 42)]
+  (if e
+    (println (ex-message e))
+    (println user)))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(let [[e user] (pcall-js get-user-by-id 42)]
+  (if e
+    (println (ex-message e))
+    (println user)))
+\end{clojure}
+
+\fi
+
+\index{functions!with repeat}
+
+\textbf{ Retries with delay.} Sometimes a third party service is unstable, and you have to access it multiple times. Let's wrap the retrying in a function so as not to copy the code. \verb|Pcall-retry| tries to call the target function in multiple passes. The result will be the first successful calling. If an error occurs but abut attempts haven't completed, the function waits and retries the call. When the number of attempts is over, the function will throw an exception.
+Internally, the \verb|pcall| we defined above is used.
+
+\index{functions!pcall-retry}
+\index{iteration!loop}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn pcall-retry [n f & args]
+  (loop [attempt n]
+    (let [[ok? res] (apply pcall f args)]
+      (cond
+        ok? res
+
+        (< attempt n)
+        (do (Thread/sleep
+              (* attempt 1000))
+            (recur (inc n)))
+
+        :else (throw res)))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn pcall-retry [n f & args]
+  (loop [attempt n]
+    (let [[ok? res] (apply pcall f args)]
+      (cond
+        ok? res
+
+        (< attempt n)
+        (do (Thread/sleep (* attempt 1000))
+            (recur (inc n)))
+
+        :else (throw res)))))
+\end{clojure}
+
+\fi
+
+That is a naive version; you can improve it by changing the waiting strategy and adding logs. However, the principle remains the same.
+
+By the way, these functions are compatible with each other. Let's build a combination of \verb|pcall| and \verb|pcall-retry|. Even if the service is not available and we have knocked on it many times, we will get a pair \verb|[ok? result]|.
+
+\begin{clojure}
+(pcall pcall-retry get-user-by-id 42)
+\end{clojure}
+
+\textbf{ Exceptions in a loop.} The \verb|loop| form is designed in a special way: its \verb|recur| part cannot be inside \verb|try|. Let's say we want to write a recur function without \verb|pcall|. Here is a snippet of code:
+
+\index{iteration}
+\index{clojure.core!loop}
+
+\begin{clojure}
+(defn pcall-retry [n f & args]
+  (loop [attempt n]
+    ...
+    (try
+      (apply f args)
+      (catch Exception e
+        (recur (inc n))))))
+\end{clojure}
+
+The compiler will not accept the code with the message: ``Can only recur from tail position''. To fix the error, you need to take out \verb|recur| from \verb|try|. The easiest way to do this is with \verb|pcall|, as in the example with \verb|pcall-retry|.
+
+\textbf{Throw in place.} By now, we have thrown exceptions using \verb|ex-info| and \verb|throw|. The former builds an exception, the latter throws it. Let's combine them in the \verb|error!| function and simplify the arguments:
+
+\index{functions!error"!}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn error! [message & [data e]]
+  (throw (ex-info message
+           (or data {}) e)))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn error! [message & [data e]]
+  (throw (ex-info message (or data {}) e)))
+\end{clojure}
+
+\fi
+
+\noindent
+The function needs only one parameter~--- a string~--- to throw an exception, and the others are optional:
+
+\begin{clojure}
+(error! "Error")
+(error! "Error" {:type ::error})
+(error! "Error" {:type ::error} e)
+\end{clojure}
+
+\textbf{ Messages with parameters.} Sometimes a detailed string is enough for an error. In this case, \verb|ex-info| is redundant because it requires a map as an argument. Now, we'll write a function that throws \verb|Exception| with a formatted message. It takes a template and substitution values.
+The \verb|f| added to the function name means formatting.
+
+\index{functions!errorf"!}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn errorf! [template & args]
+  (let [message (apply format
+                  template args)]
+    (throw (new Exception
+             ^String message))))
+
+(errorf! "Error, user: %s, action: %s"
+  42 :delete)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn errorf! [template & args]
+  (let [message (apply format template args)]
+    (throw (new Exception ^String message))))
+
+(errorf! "Error, user: %s, action: %s" 42 :delete)
+\end{clojure}
+
+\fi
+
+\textbf{Safe macro.} Catching of exceptions works in macros as well. Code with macros is usually shorter and more expressive than a regular function. The following example shows how to execute code in safe mode, ignoring an error:
+
+\index{macros!with-safe}
+
+\begin{clojure}
+(defmacro with-safe [& body]
+  `(try
+     ~@body
+     (catch Exception e#)))
+\end{clojure}
+
+\noindent
+An empty \verb|catch| form will return \verb|nil|. We'll get it if an error occurs:
+
+\begin{clojure}
+(with-safe (/ 0 0))
+nil
+\end{clojure}
+
+In practice, \verb|nil| does not always mean an error, so the \verb|:error| or \verb|:invalid| keys are returned. That is how the Spec library works, which we discussed in the last chapter \page{spec-invalid}. Sometimes, we add logging or a Sentry call in the \verb|catch| block. Only suppress the error if the result is unimportant at all.
+
+\section{Summary}
+
+Exceptions in Clojure are similar to Java's. The \verb|try| and \verb|catch| forms are similar to Java statements of the same name. Interception works on classes and inheritance. The higher the class in the hierarchy, the more errors it covers.
+
+The \verb|ExceptionInfo| class is specifically designed for Clojure. Its \verb|data| field takes any map. The exception type is determined by the \verb|:type| field of the map. The \verb|ex-info| function is an exception constructor.
+
+An error may have a \verb|cause|. If you catch an exception but don't know what to do with it, throw a new one with context and a link to the initial. That is how exception chains are built. To find out the cause, data from the entire chain will come in, not just from the top link.
+
+The code at the application top-level decides what to do with the exception.
+That is best to pass it to the error collection system. Sentry or its analogs can be such a system. Make sure the Sentry client passes all error information, not just the stack trace.
+
+If an error occurs, we usually close the resource in the \verb|finally| branch~--- to prevent it from staying busy. A context manager makes it easy to access the resource. The context manager is a \verb|with-<something>| macro wrapping a block of code in \verb|try/finally|. Clojure offers a \verb|with-open| macro working with files.
+
+Sometimes we can use an exception to jump to a particular place in the code. That is a controversial approach, and you must have good reasons for using it. If jumping code is vital, include a special library.
+
+Slingshot offers the improved macros \verb|try+| and \verb|throw+|. With them, you catch errors with selectors and predicates, not classes. Maps are used instead of exceptions.
+
+Some functions simplify the exception control. Please take note of them to shorten your code.

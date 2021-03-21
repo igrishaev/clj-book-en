@@ -1,0 +1,3386 @@
+\chapter{Clojure.spec}
+
+\label{chapter-spec}
+
+\index{spec}
+
+\begin{teaser}
+In this chapter, we will cover clojure.spec. It is a library for data validation in Clojure. It is a unique library: you can write validators and parsers in it, and generate data for tests. Spec is fundamental, so we should pay close attention to it.
+\end{teaser}
+
+The name spec is short for a specification. The library is a set of functions and macros for a schematic description of data. For example, what keys the map consists of and what the types of its values are. Such a record is called a data specification or spec. In what follows, we will use the ``spec'' word.
+
+Special functions check if the data conforms to a spec. If not, we will get a report of where the error occurred and why.
+
+\index{modules!clojure.spec.alpha}
+
+The Clojure distribution has included Spec since version 1.9. The full name of the module is \verb|clojure.spec.alpha|. The part ``alpha'' at the end of the name does not matter: it remained for historical reasons.
+
+\index{validation}
+\index{parsing}
+
+Spec has become a milestone in the development of Clojure. The key property of spec is its being fundamental. Data validation is a small part of its capabilities. Spec not only validates data but also transforms it. It is easy to write parsers in Spec.
+
+Formally, clojure.spec is a regular library. But its abstractions are so powerful that Clojure reuses them. Since version 1.10, the Clojure compiler parses main macros using Spec. So the projects complement each other.
+
+Before getting down to the technical part, we should understand the theory. Let's recap how classes, types, and validation are related.
+
+\section{Types and Classes}
+
+\label{type-and-pred}
+
+\index{typing!static}
+\index{typing!dynamic}
+
+It is believed that statically typed code is safer than dynamically typed one. The compiler does not allow adding a number to a string even before we run the program for the first time. However, a variable type is just one of many restrictions. It rarely happens that a type specifies all valid values. Most often, along with the type, one takes into account boundaries, length, falling into an interval, and enumerations. Sometimes the values are valid individually, but cannot be paired with each other.
+
+\index{port}
+
+Let's see how to express the network port in the code. In the operating system, this is a number from 0 to $2^{16}-1$. Integer types we usually describe in powers of two, so there is a conditional \verb|unsigned int| that covers this exact range. Port Zero has its semantics and is not used in application programs. The likelihood that the language provides a type from~1 to~$2^{16}-1$ is extremely small.
+
+The problem is more noticeable on the date range. A single date can be as reasonable as you want, but the range imposes a limitation: the beginning should be strictly less than the end. Business can impose additional restrictions: the difference is no more than a week, both dates are within the current month.
+
+\index{validation}
+
+OOP solves this problem using the \verb|UnixPort| and \verb|DateRange| classes. Conditional \verb|UnixPort| is a class with a constructor. It takes an integer and performs a range check. If the integer is out of range from 1 to \dots~$2^{16}-1$, the constructor will throw an exception. The programmer might believe he/she has created a new type. But classes and types are not the same.
+
+A constructor is a regular validator. When we write \spverb|new UnixPort(8080)| , it will work implicitly. Implicitness gives the illusion that we have created a type. In fact, this is validation and syntactic sugar.
+
+\index{syntactic sugar}
+
+In languages for enterprise solutions (e.g., Java, Scala, etc.), you cannot describe a class in such a way that the \verb|new UnixPort(-42)| expression results in a compilation error. Only third-party utilities and plugins for IDE can find it.
+
+We cannot reuse a constructor. Let's consider with the \verb|UnixPort| and \verb|NetPort| classes. The former checks the port for a range and throws an exception. It is beneficial to use this class, since it is combined with validation. However, a third-party library accepts \verb|NetPort|. There is a conversion problem: you need to extract the raw port from \verb|UnixPort| and send it to \verb|NetPort|. It is an unnecessary code and class confusion.
+
+\index{classes}
+
+Independence and composition are hallmarks of convenient validation. Independence means that the data is not bound to validation. It's okay if the port is an integer. Let the library take \verb|integer|, and a developer decides how to validate it. They will have a choice of how strict the validation should be.
+
+\index{functions!composition}
+
+Composition means that it is useful to have a few simple checks to compose sophisticated ones. Suppose the checks ``A'' and ``B'' are specified. Now, we need their combinations~--- ``A  \emph{\&}~B'' and ``A \emph{or}~B''. Ideally, a composition is a couple of code lines and is trivial.
+
+\index{functions}
+
+Both theses are in line with the concept of function.  The latter is used by one operation only~--- the call, and that makes things simpler. The function takes a value and returns ``true'' or ``false''. It answers the question of whether the value was proper or not. Clojure functions are first-class objects, so they are easy to combine.
+
+\section{Spec Basics}
+
+With this in mind, we come to Spec. Now we should include the module in the current namespace:
+
+\begin{clojure}
+(require '[clojure.spec.alpha :as s])
+\end{clojure}
+
+The \verb|s| synonym is needed to avoid name conflicts with \verb|Clojure.core|. The Spec module contains macros \verb|s/and|, \verb|s/or|, and others that have nothing to do with the regular \verb|and| and \verb|or|. It is considered bad manners if the names of one module shadow others, so we refer to Spec through a synonym.
+
+\index{spec!def}
+
+The main operation in Spec is to create a new \emph{spec}:
+
+\begin{clojure}
+(s/def ::string string?)
+\end{clojure}
+
+\index{clojure.core!string?}
+
+The \verb|s/def| macro takes a key and a predicate. It should create a spec object from the \verb|string?| function and place it in the global registry with the \verb|::string| key.
+
+We need to understand that \verb|::string| is not a spec, but an alias. The spec library macros work with keys, not spec objects. They find specs by themselves in the registry. The keys are global, so this is convenient. You can refer to \verb|::string| anywhere without unnecessary imports.
+
+\index{spec!get-spec}
+
+The second argument is the \verb|string?| predicate. A predicate is a function that returns true or false. A function is a building block for a spec. The spec wraps the function into a specific object. Technically, we can refer to it: the \verb|s/get-spec| function will return a spec object by the key. In practice, the object is not needed, because keys are specified everywhere.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/get-spec ::string)
+;;#object[clojure.spec.alpha$reify 0x...]
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/get-spec ::string)
+;; #object[clojure.spec.alpha$reify 0x3e9dde1d]
+\end{clojure}
+
+\fi
+
+\index{spec!registry }
+
+Specs are stored in the global registry under their keys. When the \verb|s/def| macro puts a spec into the registry, it does not check if there is already the same one in it. Therefore, we will lose the previous version if it is there.
+
+\index{key conflicts}
+
+Spec does not work with keys without namespace, for example \verb|:name| or \verb|:email|. This limitation minimizes the risk of conflict of keys. To assign the current namespace to a key, add a second colon to it, like this — \verb|::name|, \verb|::email|.
+
+\index{namespaces!current}
+
+The most simplistic use of a spec is to check if a value conforms to it. The \verb|s/valid?| function takes a spec key, a value, and returns \verb|true| or \verb|false|.
+
+\begin{clojure}
+(s/valid? ::string 1)      ;; false
+(s/valid? ::string "test") ;; true
+\end{clojure}
+
+An empty string will be validated, but in most cases, it doesn't make sense. An empty name or title means an error. Let's declare a spec that should additionally check if the string is empty. We can use a naive way to do it~--- let's complicate the predicate:
+
+\index{spec!::ne-string}
+
+\begin{clojure}
+(s/def ::ne-string
+  (fn [val]
+    (and (string? val)
+         (not (empty? val)))))
+\end{clojure}
+
+\noindent
+Quick check:
+
+\begin{clojure}
+(s/valid? ::ne-string "test") ;; true
+(s/valid? ::ne-string "")     ;; false
+\end{clojure}
+
+The \verb|::ne-string| key is short for ``\textbf{n}on-\textbf{e}mpty
+string''. The spec is often used: so it is logical to shorten its name.
+
+A more elegant way to define this spec is to compose predicates using the \verb|every-pred| function. It takes a set of predicates and returns a super-predicate. It returns true only if all of its composing predicates are true.
+
+\begin{clojure}
+(s/def ::ne-string
+  (every-pred string? not-empty))
+\end{clojure}
+
+\index{spec!and}
+\index{clojure.core!every-pred}
+\index{predicates}
+
+We are assembling a new entity from the base ones: this way is short and functional. However, it's even better to combine not predicates, but specs. The \verb|s/and| macro combines several predicates and specs into a new spec:
+
+\begin{clojure}
+(s/def ::ne-string
+  (s/and string? not-empty))
+\end{clojure}
+
+We can build sophisticated specs in Clojure this way: declare primitives and build up their combinations.
+
+\section{Exceptions}
+
+\index{exceptions}
+
+During validation, Spec does not catch the exception, so the programmer must take care of this. Let's take a look at the URL validation spec. The easiest way to do this is to use a regular expression:
+
+\index{clojure.core!re-matches}
+\index{regular expressions}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::url
+  (partial
+    re-matches #"(?i)^http(s?)://.*"))
+
+(s/valid? ::url "test") ;;false
+(s/valid? ::url "http://test.com") ;;true
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::url
+  (partial re-matches #"(?i)^http(s?)://.*"))
+
+(s/valid? ::url "test")            ;; false
+(s/valid? ::url "http://test.com") ;; true
+\end{clojure}
+
+\fi
+
+Anything but a string should throw an error:
+
+\index{exceptions}
+\index{classes!NullPointerException}
+
+\begin{clojure}
+(s/valid? ::url nil)
+;; Execution error (NullPointerException)
+;; at java.util.regex.Matcher...
+\end{clojure}
+
+\index{NPE}
+
+Note: The  \verb|NullPointerException| class is a frequent visitor to the Java world. Its abbreviated name is \verb|NPE|.
+
+The reason is that \verb|nil| was plugged into the \verb|re-matches| function. The function treats the argument as a string, resulting in \verb|NPE|. Rewrite the spec so that it won't throw exceptions. In the example with \verb|::url|, we should first make sure that it is a string, and only then check with a regular expression.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::url
+  (s/and ::ne-string
+         (partial re-matches
+           #"(?i)^http(s?)://.*")))
+
+(s/valid? ::url nil) ;; false
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::url
+  (s/and ::ne-string
+         (partial re-matches #"(?i)^http(s?)://.*")))
+
+(s/valid? ::url nil) ;; false
+\end{clojure}
+
+\fi
+
+\index{spec!::ne-string}
+
+The \verb|s/and| macro is designed so that the chain will break with the first failure. Anything after \verb|::ne-string| will not work, and there will be no exception.
+
+Let's check the user's age the same way. These predicates test the number of years and the range.
+
+\begin{clojure}
+(s/def ::age
+  (s/and int? #(<= 0 % 150)))
+
+(s/valid? ::age nil) ;; false
+(s/valid? ::age -1)  ;; false
+(s/valid? ::age 42)  ;; true
+\end{clojure}
+
+\section{Specs for Collections}
+
+\index{collections}
+\index{scalars}
+
+Above, we were validating primitive types~--- \emph{scalars}. They are useful as examples, but rarely seen in practice. As a rule, we need to validate not scalars, but collections. The library offers macros to create specs for collections of primitives.
+
+\index{spec!coll-of}
+
+The \verb|s/coll-of| macro takes a predicate or key and returns a spec for a collection. The latter checks that each element is validated. Now, we will define a list of URLs:
+
+\begin{clojure}
+(s/def ::url-list (s/coll-of ::url))
+\end{clojure}
+
+\noindent
+Quick check:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/valid? ::url-list
+  ["http://test.com" "http://ya.ru"])
+;; true
+
+(s/valid? ::url-list
+  ["http://test.com" "dunno.com"])
+;; false
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/valid? ::url-list ["http://test.com" "http://ya.ru"])
+;; true
+
+(s/valid? ::url-list ["http://test.com" "dunno.com"])
+;; false
+\end{clojure}
+
+\fi
+
+\index{spec!map-of}
+\index{HTTP!parameters}
+
+The \verb|s/map-of| macro describes a map. Recall the \verb|:params| field from the chapter on web development \page{ring-params}.  The field keys are keywords, and the values are strings. In the spec language, it looks like this:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::params
+  (s/map-of keyword? string?))
+
+(s/valid? ::params
+  {:foo "test"})  ;; true
+(s/valid? ::params
+  {"foo" "test"}) ;; false
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::params
+  (s/map-of keyword? string?))
+
+(s/valid? ::params {:foo "test"})  ;; true
+(s/valid? ::params {"foo" "test"}) ;; false
+\end{clojure}
+
+\fi
+
+The \verb|s/map-of| check is rather weak to cover all options. Knowing that values are strings is useless. We must make sure that the keys in the map meet our expectations. Besides, it rarely happens that the type of values is the same. On the contrary, the map contains different information about the entity: a name, age, date.
+
+\index{spec!keys}
+
+In such cases, we should use the \verb|s/keys| macro which lists specs. Spec names are the same as map keys. The specs check the values of the same name keys.
+
+Let's imagine a web page with an address and description. First, we will declare the primitives:
+
+\begin{clojure}
+(s/def :page/address ::url)
+(s/def :page/description ::ne-string)
+\end{clojure}
+
+\index{namespaces}
+
+Pay attention to the namespace of the keys. The address and description are associated with the page, so we give them this namespace. An article or book might also have an address and description. A namespace guarantees that specs \verb|:page/address| and \verb|:book/address| will not replace each other.
+
+Let's create the spec for a page:
+
+\begin{clojure}
+(s/def ::page
+  (s/keys :req-un [:page/address
+                   :page/description]))
+\end{clojure}
+
+\index{spec!:req-un}
+
+The \verb|:req-un| parameter specifies the vector of specs. For each of them, our spec looks for a key of the same name in the map and validates the value. Let's see what \verb|:req-un| means and what other parameters \verb|s/keys| takes.
+
+The \verb|:req-un| name consists of the parts ``req'' and ``un''. The former is a sign of the presence of a key, and the latter — of the type. Req (required) means that the keys must be in the map. The opposite in meaning parameter is called opt (optional). It specifies keys that may not be present. They will only be validated if they are in the map.
+
+ \index{spec!:un}
+
+The ``un-'' part stands for an unqualified key. When checking un-keys, the spec discards their space. For example, if you specify \verb|:page/address| in the \verb|:req-un| list, then the \verb|:address| key will be searched for in the map, not the \verb|:page/address| one.
+
+We meet unqualified keys frequently. The data comes from different APIs and databases that know nothing about the namespaces. There are exceptions when the entire company stack is built in Clojure. In this case, a client and server send data with fully-qualified keys.
+
+There are the following combinations of  \verb|req|, \verb|opt|, and \verb|un|:
+
+\begin{itemize}
+
+\item
+  \verb|:req|~--- required fully-qualified keys;
+
+\item
+  \verb|:req-un|~--- required unqualified keys;
+
+\index{spec!:opt}
+
+\item
+  \verb|:opt|~--- optional fully-qualified keys;
+
+\index{spec!:opt-un}
+
+\item
+  \verb|:opt-un|~--- optional unqualified keys.
+
+\end{itemize}
+
+The \verb|::page| spec keys are required and unqualified (without a namespace). Below are examples of data \emph{with errors}. These may be an incorrect address, an empty description, or a missing key. If you put each map in the \spverb|(s/valid? ::page <data>)| expression, it should return false.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+{:address "clojure.org" ;; not a URL
+ :description "Clojure Language"}
+
+;; empty string
+{:address "https://clojure.org/"
+ :description ""}
+
+;; no description
+{:address "https://clojure.org/"}
+
+ ;; full keys
+{:page/address "https://clojure.org/"
+ :page/description "Clojure Language"}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+{:address "clojure.org" ;; not a URL
+ :description "Clojure Language"}
+
+{:address "https://clojure.org/"
+ :description ""} ;; empty string
+
+{:address "https://clojure.org/"} ;; no description
+
+{:page/address "https://clojure.org/" ;; full keys
+ :page/description "Clojure Language"}
+\end{clojure}
+
+\fi
+
+Look at the last case. The values are correct, but the keys have the \verb|:page| namespace. Validation will fail because the spec looks for \verb|:address|, not \verb|:page/address|. To fix the last example, replace the \verb|:req-un| type of keys with \verb|:req| (required fully-qualified).
+
+\index{spec!valid?}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::page-fq
+  (s/keys :req [:page/address
+                :page/description]))
+
+(s/valid? ::page-fq
+  {:page/address "https://clojure.org/"
+   :page/description "Clojure Language"})
+;; true
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::page-fq
+  (s/keys :req [:page/address
+                :page/description]))
+
+(s/valid? ::page-fq
+          {:page/address "https://clojure.org/"
+           :page/description "Clojure Language"})
+;; true
+\end{clojure}
+
+\fi
+
+Let's complicate our example: add to the page the status that we received the last time we accessed it. The field is optional because if the page hasn't been accessed yet, there's nothing to write down. Below is a new spec:
+
+\begin{clojure}
+(s/def :page/status int?)
+
+(s/def ::page-status
+  (s/keys :req-un [:page/address
+                   :page/description]
+          :opt-un [:page/status]))
+\end{clojure}
+
+Maps with the proper status and without it will be validated:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/valid? ::page-status
+  {:address "https://clojure.org/"
+   :description "Clojure Language"})
+
+(s/valid? ::page-status
+  {:address "https://clojure.org/"
+   :description "Clojure Language"
+   :status 200})
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/valid? ::page-status
+          {:address "https://clojure.org/"
+           :description "Clojure Language"})
+
+(s/valid? ::page-status
+          {:address "https://clojure.org/"
+           :description "Clojure Language"
+           :status 200})
+\end{clojure}
+
+\fi
+
+\index{nil}
+
+Note that \verb|s/keys| distinguishes between \verb|nil| and the presence of a key. If the status is \verb|nil|, it \emph{is} in the map. Checking \verb|nil| for \verb|int?| should work, which will lead to an error. In this case, the empty value is not the same as no value.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/valid? ::page-status
+  {:address "https://clojure.org/"
+   :description "Clojure Language"
+   :status nil})
+;; false
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/valid? ::page-status
+          {:address "https://clojure.org/"
+           :description "Clojure Language"
+           :status nil})
+;; false
+\end{clojure}
+
+\fi
+
+\section{Conformed Values}
+
+\label{spec-conform}
+
+\index{conform!values}
+
+Until now, we have validated data with \verb|s/valid?|. The function must return true or false, which means whether the data is proper or not. But the validation alone is not enough — sometimes values are correct, but you need to coerce them to a required type.
+
+So, the input received a number as a string. We made sure that the string consists of digits and does not exceed the allowed length. After validation, the value is still a string and must be parsed manually. It would be nice if some algorithm coerces proper types for us.
+
+\index{spec!conform}
+
+Spec offers such features. These are the \verb|s/conformer| and \verb|s/conform| functions. If they return a converted value, it is called a ``conformed'' value in terms of Spec.
+
+\label{spec-invalid}
+
+\index{spec!conformer}
+
+\index{spec!::invalid}
+
+First, write the type coercion function. It takes the original value and returns either a new one or the \verb|::s/invalid| key indicating an error. The function will be wrapped in \verb|s/conformer| to obtain a spec.  \verb|S/conform| takes a spec-conformer and data. If the types were coerced without errors, we get a conformed value, otherwise — the \verb|::s/invalid| key.
+
+Next, we'll look at converting a string to an integer. To tell a conformer from a validator, we need to add an arrow to the name, which means type coercion.
+
+\begin{clojure}
+(s/def ::->int
+  (s/conformer
+   (fn [value]
+     (try
+       (Integer/parseInt value)
+       (catch Exception e
+         ::s/invalid)))))
+\end{clojure}
+
+\noindent
+This spec is passed to \verb|s/conform| with the data:
+
+\begin{clojure}
+(s/conform ::->int "42") ;; 42
+
+(s/conform ::->int "dunno")
+:clojure.spec.alpha/invalid
+\end{clojure}
+
+\index{exceptions}
+
+\verb|S/conform| does not catch exceptions during operation, and there are many of them when coercing. It will be correct to catch an exception and return \verb|::s/invalid|, as in the example above.
+
+We can combine both the validator and the conformer specs using \verb|s/and| to check the type before conforming. In our case, let's make sure the value is a string. This way, we will not allow \verb|nil| or anything else to get in \verb|parseInt|.
+
+\begin{clojure}
+(s/def ::->int
+  (s/and ::ne-string ::->int))
+
+(s/conform ::->int nil)
+:clojure.spec.alpha/invalid
+\end{clojure}
+
+\index{web development!dates}
+
+Let's see how to recover the date from the string. That is an old good web development problem: JSON does not support dates, so they are passed as an ISO string or a number of seconds. We need to somehow coerce them to an object on the server.
+
+\index{modules!clojure.instant}
+\index{functions!read-instant-date}
+
+We will need a string parser and a small wrapper to bind it with the spec. The \verb|read-instant-date| function from the \verb|clojure.instant| module reads a date from a string. The function is tolerant to the format and takes into account different combinations. For example, the date can only be a year.
+
+\index{dates}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(require '[clojure.instant
+           :refer [read-instant-date]])
+
+(read-instant-date "2019")
+#inst "2019-01-01T00:00:00.000-00:00"
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(require '[clojure.instant :refer [read-instant-date]])
+
+(read-instant-date "2019")
+#inst "2019-01-01T00:00:00.000-00:00"
+\end{clojure}
+
+\fi
+
+Now, we will wrap the function in a spec:
+
+\begin{clojure}
+(s/def ::->date
+  (s/and
+   ::ne-string
+   (s/conformer
+    (fn [value]
+      (try
+        (read-instant-date value)
+        (catch Exception e
+          ::s/invalid))))))
+\end{clojure}
+
+Before parsing, we'll do minimal checks. We should make sure it's not an empty string ~--- to cut off \verb|nil| and other garbage. Date conforming:
+
+\begin{clojure}
+(s/conform ::->date "2019-12-31")
+#inst "2019-12-31T00:00:00.000-00:00"
+\end{clojure}
+
+\noindent
+Date and time:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/conform ::->date
+           "2019-12-31T23:59:59")
+#inst "2019-12-31T23:59:59.000-00:00"
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/conform ::->date "2019-12-31T23:59:59")
+#inst "2019-12-31T23:59:59.000-00:00"
+\end{clojure}
+
+\fi
+
+\section{Enumerations as Specs}
+
+\index{spec!enumerations}
+
+Sometimes it is known in advance what values a field takes. Suppose a client transmits the system architecture~--- 32 or 64 bits~--- when calling the API. For the sake of two values, it makes no sense to parse a number: we can use \verb|case| or a map.
+
+Let's look at the \verb|case| macro option. If nothing is found, signal an error with the \verb|::s/invalid| key. Note that \verb|case| does not do a linear search. It builds the branch indexes and goes straight to the required one.
+
+\index{clojure.core!case}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::->bits
+  (s/conformer
+   (fn [value]
+     (case value
+       "32" 32 "64" 64
+       ::s/invalid))))
+
+(s/conform ::->bits "32") ;; 32
+
+(s/conform ::->bits "42")
+:clojure.spec.alpha/invalid
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::->bits
+  (s/conformer
+   (fn [value]
+     (case value
+       "32" 32 "64" 64
+       ::s/invalid))))
+
+(s/conform ::->bits "32") ;; 32
+(s/conform ::->bits "42") :clojure.spec.alpha/invalid
+\end{clojure}
+
+\fi
+
+\index{configuration}
+
+Below we will see the option with a map to transform the value. Conveniently, the map is in a separate variable. We can easily add to it or bring it into the configuration, while the validation logic will not change.
+
+\begin{clojure}
+(def bits-map {"32" 32 "64" 64})
+
+(s/def ::->bits
+  (s/conformer
+   #(get bits-map % ::s/invalid)))
+\end{clojure}
+
+Similarly, we can read boolean values from strings. There is no single agreement on how to write true and false in text. Possible spellings are \verb|True|, \verb|TRUE|, \verb|1|, \verb|yes| (for true) and \verb|FALSE|, \verb|no|, etc. (for opposite meaning). When parsing values, they must be converted to a single case. In Clojure, \verb|FALSE| and \verb|false| are different strings, even if the sender means the same. A scenario looks like this:
+
+\begin{itemize}
+
+\item
+  make sure the value is a string;
+
+\item
+  convert it to lowercase;
+
+\item
+  find the value using the map or the \verb|case| macro.
+
+\end{itemize}
+
+\noindent
+The code will be like this:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::->bool
+  (s/and
+   ::ne-string
+   (s/conformer
+     clojure.string/lower-case)
+   (s/conformer
+    (fn [value]
+      (case value
+        ("true" "1" "on" "yes")
+        true
+
+        ("false" "0" "off" "no")
+        false
+
+        ::s/invalid)))))
+
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::->bool
+  (s/and
+   ::ne-string
+   (s/conformer clojure.string/lower-case)
+   (s/conformer
+    (fn [value]
+      (case value
+        ("true" "1" "on" "yes") true
+        ("false" "0" "off" "no") false
+        ::s/invalid)))))
+
+\end{clojure}
+
+\fi
+
+\noindent
+Conforming in progress:
+
+\begin{clojure}
+(s/conform ::->bool "True") ;; true
+(s/conform ::->bool "yes")  ;; true
+(s/conform ::->bool "0")    ;; false
+\end{clojure}
+
+\section{Advanced Techniques}
+
+\index{patterns}
+
+We've written enough code to notice the same areas in it~--- patterns. In this section, we will put them into functions and macros that will speed up your work.
+
+\subsection{Sets}
+
+\index{sets}
+
+A set is suitable as a spec when the values are known. It works like a function: if the argument is found in the set, we'll get it. Otherwise, we'll get \verb|nil|. Let's imagine that the status of a task may be the \verb|todo|, \verb|in_progress|, and \verb|done| strings. We can describe the spec with a set of these values:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::status
+  #{"todo" "in_progres" "done"})
+(s/valid? ::status "todo") ;; true
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::status #{"todo" "in_progres" "done"})
+(s/valid? ::status "todo") ;; true
+\end{clojure}
+
+\fi
+
+Sets are also suitable for exact equality. If the spec takes exactly one value, we can still specify it as a set of one element. Suppose the \verb|notify| parameter determines how often to notify the user. Since we support the \verb|daily| type only, we'll write the spec like this:
+
+\begin{clojure}
+(s/def ::notification #{"daily"})
+\end{clojure}
+
+\noindent
+We can rewrite the same expression using \verb|partial| of equality:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::notification
+  (partial = "daily"))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::notification (partial = "daily"))
+\end{clojure}
+
+\fi
+
+The advantage of a set is that it is easier to expand, move to a file or configuration.
+
+\subsection{Enumerations}
+
+\index{clojure.core!contains?}
+
+A set is inappropriate in cases where \verb|false| and \verb|nil| are considered correct values. \verb|S/valid?| treats them as a failure. If \verb|nil| or \verb|false| are valid, they are checked with the \verb|contains?| function:
+
+\begin{clojure}
+(contains? #{1 :a nil} nil) ;; true
+\end{clojure}
+
+To avoid repeating, let's write the \verb|enum| function. It takes values and returns a predicate. In turn, the predicate takes an argument and looks it up among the original values.
+
+\begin{clojure}
+(defn enum [& args]
+  (let [arg-set (set args)]
+    (fn [value]
+      (contains? arg-set value))))
+\end{clojure}
+
+The inner function is closed on the \verb|arg-set| variable. We got this set from the argument list. We created it once to avoid doing it every time we call a predicate. The new enums look short and clear:
+
+\begin{clojure}
+(s/def ::status
+  (enum "todo"
+        "in_progres"
+        "done"))
+\end{clojure}
+
+\subsection{With-conformer}
+
+\index{macros!with-conformer}
+\index{exceptions!try}
+\index{exceptions!catch}
+
+Conformers require special attention. They are prone to mistakes — not catching an exception or not wrapping a function in an auxiliary \verb|s/conformer|. To reduce the risk of errors, let's move the routine into the \verb|with-conformer| macro.
+
+The macro takes a variable symbol and an arbitrary body. It creates a function with one argument. The function will execute the body in the \verb|try/catch| block. If there is no exception, we'll get the last body expression. Otherwise, \verb|::s/invalid| will be returned. We've deliberately enclose the symbol in square brackets to make the syntax look like a function (\verb|defn|).
+
+\begin{clojure}
+(defmacro with-conformer
+  [[bind] & body]
+  `(s/conformer
+    (fn [~bind]
+      (try
+        ~@body
+        (catch Exception e#
+          ::s/invalid)))))
+\end{clojure}
+
+\noindent
+
+Here we are conforming the integer:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def ->int
+  (with-conformer [val]
+    (Integer/parseInt val)))
+\end{clojure}
+
+\splitter
+
+\begin{clojure}
+(s/def ::->int
+  (s/and ::ne-string
+         ->int))
+\end{clojure}
+
+\else
+
+
+\noindent
+\begin{tabular}{ @{}p{5cm} @{}p{5cm} }
+
+\begin{clojure}
+(def ->int
+  (with-conformer [val]
+    (Integer/parseInt val)))
+\end{clojure}
+
+&
+
+\begin{clojure}
+(s/def ::->int
+  (s/and ::ne-string
+         ->int))
+\end{clojure}
+
+\end{tabular}
+
+
+\fi
+
+\noindent
+and boolean:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::->bool
+  (s/and
+   ->lower
+   (with-conformer [val]
+     (case val
+       ("true"  "1" "on"  "yes")
+       true
+
+       ("false" "0" "off" "no" )
+       false))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::->bool
+  (s/and
+   ->lower
+   (with-conformer [val]
+     (case val
+       ("true"  "1" "on"  "yes") true
+       ("false" "0" "off" "no" ) false))))
+\end{clojure}
+
+\fi
+
+\noindent
+The \verb|->lower| variable is a wrapper for case conversion:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def ->lower
+  (s/and
+    string?
+    (s/conformer
+      clojure.string/lower-case)))
+\end{clojure}
+\else
+
+\begin{clojure}
+(def ->lower
+  (s/and
+    string?
+    (s/conformer clojure.string/lower-case)))
+\end{clojure}
+
+\fi
+
+The  \verb|::s/invalid| key is not necessary at the end of the \verb|case| macro. If the default option is not specified and \verb|case| did not find a branch, it will throw an exception. \verb|With-conformer| will catch it and return \verb|::s/invalid|.
+
+\section{Logical Paths}
+
+\index{spec!logical paths}
+
+The \verb|s/conform| function does not always return what we expect. Some specs wrap the result in a vector, where the first element is a logical path. It appears where the check is branching due to conditional specs.
+
+The familiar for us \verb|s/and| walks through every child spec and validates the data. Sometimes linear traversal is not enough because of the fork. For example, we have such a condition: if the value is an integer, then leave it as it is, and if it is a string, then convert it to an integer. The specs with branching checks are conditional.
+
+The \verb|s/or| macro takes tags and child specs. It applies them to a value until the first match. As a result, we should get a pair where the first element is a tag, and the second is the value from the matched spec.
+
+The tag becomes part of the path used by the check. The logical path helps us investigate where the error occurred. For simple specs, this is not a problem. But in practice, several conditional specs can be nested one inside another. Finding an error without a logical path is difficult.
+
+\index{spec!explain}
+
+If the validation fails, we can obtain the logical path from the debug information. The functions of the \verb|s/explain*| family~--- which we will discuss below~--- return it.
+
+Let's write a spec for a network port that accepts a number or a string. In the second case, the spec returns a number. That is useful if the value comes from an environment variable or INI file.
+
+\begin{clojure}
+(s/def ::smart-port
+  (s/or :string ::->int :num int?))
+\end{clojure}
+
+\noindent
+Now \verb|s/conform| will return not just a value, but a pair with a tag:
+
+\begin{clojure}
+(s/conform ::smart-port 8080)
+[:num 8080]
+
+(s/conform ::smart-port "8080")
+[:string 8080]
+\end{clojure}
+
+\index{scalars}
+\index{spec!forks}
+
+If there is a fork in the spec (\verb|s/or|, \verb|s/alt|), then the structure of the \verb|s/conform| will differ from the input data: a vector will appear instead of a scalar. Here we will show it on the nested data. Let the port be one of the database connection fields:
+
+\begin{clojure}
+(s/def :conn/port ::smart-port)
+(s/def ::conn
+  (s/keys :req-un [:conn/port]))
+
+(s/conform ::conn {:port "9090"})
+{:port [:string 9090]}
+\end{clojure}
+
+The topology of the result has changed, and we must take this into account. If we pass the \verb|:port| field value to the connection, we receive a type error.
+
+\section{Opposite Action}
+
+\index{spec!unform}
+
+The \verb|unform| function does the opposite: by a spec and a result, it will return the original value. Above, we got the map, where the \verb|:port| field is a vector. To return to the original data, we should run:
+
+\begin{clojure}
+(s/unform ::conn {:port [:num 9090]})
+{:port 9090}
+\end{clojure}
+
+\noindent
+If we pass a pair with a string, we'll get an error:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/unform ::conn {:port [:string 9090]})
+;;Execution error (IllegalStateException)
+;;no unform fn for conformer
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/unform ::conn {:port [:string 9090]})
+;; Execution error (IllegalStateException)
+;; no unform fn for conformer
+\end{clojure}
+
+\fi
+
+Actually, we attached the predicate to the \verb|:num| tag. This predicate doesn't infer anything, so \verb|unform| drops the tag for the predicate and returns a value. The \verb|:string| tag points to the \verb|conformer| type spec, that \emph{conforms} the value. To execute \verb|unform|, we need to tell it how to do it.
+
+\index{spec!conformer}
+
+The first argument of \verb|s/conformer| is the function of type coercion. The \verb|s/conform| refers to it when called. The second~--- optional~--- argument is a function with the opposite effect: it returns the previous value by the result of \verb|conform|. This function will fire at the moment when \verb|s/unform| is executed.
+
+Convert \verb|::->int| to support \verb|unform|:
+
+\begin{clojure}
+(s/def ::->int
+  (s/and
+   ::ne-string
+   (s/conformer
+    (fn [string]
+      (Integer/parseInt string))
+    (fn [integer]
+      (str integer)))))
+\end{clojure}
+
+\noindent
+Now the port with the string will not throw an error:
+
+\begin{clojure}
+(s/unform ::conn {:port [:string 9090]})
+{:port "9090"}
+\end{clojure}
+
+\verb|Unform| is useful if you have lost the original data, but kept its \verb|conformed| version.
+
+You may have noticed though our goal was to get the port from a string, because of \verb|conform| and \verb|unform|, things went wrong. The \verb|conform| inferred the type but added tags to the result, which changed the structure. \verb|Unform| removed these tags but coerced the integer back to the string. What are they designed for?
+
+Briefly, \verb|conform| and tags are indispensable for parsing and walking data. Next, we will show how to use \verb|conform| to get a syntax tree. No compiler can do without it. As for \verb|unform| behavior, we can apply a trick.
+
+In the \verb|unform| part of the \verb|::->int| spec, we will convert the integer back to a string. If the integer returns unchanged, it will take its place into \verb|:port| in the final map:
+
+\begin{clojure}
+(s/def ::->int
+  (s/and
+   ::ne-string
+   (s/conformer
+    (fn [string]
+      (Integer/parseInt string))
+    (fn [integer]
+      integer))))
+
+(s/unform ::conn {:port [:string 9090]})
+{:port 9090}
+\end{clojure}
+
+\index{clojure.core!identity}
+
+For the sake of shortness, we can specify the \verb|identity| function (returning a passed argument) as the second argument.  With this approach, \verb|unform| will always return what is gotten at the \verb|conform| stage. Here's a full cycle of \verb|conform| and \verb|unform|:
+
+\begin{clojure}
+(->> {:port "9090"}
+     (s/conform ::conn)
+     (s/unform ::conn))
+{:port 9090}
+\end{clojure}
+
+Make \verb|unform| part of the \verb|with-conformer| macro to avoid forgetting it in the spec:
+
+\begin{clojure}
+(defmacro with-conformer
+  [[bind] & body]
+  `(s/conformer
+    (fn [~bind]
+      (try
+        ~@body
+        (catch Exception e#
+          ::s/invalid)))
+    identity))
+\end{clojure}
+
+\section{Error Analysis}
+
+\index{errors!spec}
+
+\label{spec-explain}
+
+When data is improper, \verb|s/valid?| and \verb|s/conform| return \verb|false| and \verb|::s/invalid|. That is not enough to understand the cause of the error. Imagine you have a user spec. It contains several addresses, each address contains several strings, and the check returned \verb|false|. A manual error search will take hours.
+
+The \verb|s/explain| family functions take spec and data. If the check fails, we will get a report. It is a map that indicates problem values, specs, paths to them, and other data. The difference between the functions is how they handle the report:
+
+\begin{itemize}
+
+\index{spec!explain}
+\index{spec!explain-str}
+\index{spec!explain-data}
+\index{spec! report }
+\index{report!spec}
+
+\item
+  \verb|s/explain| displays it to standard stream (to the screen);
+
+\item
+  \verb|s/explain-str| returns the report as a string;
+
+\item
+  \verb|s/explain-data| returns a map. The last is the complete bug report.
+
+\end{itemize}
+
+Let's try the functions in action. First, we'll prepare a simple spec for them:
+
+\begin{clojure}
+(s/def :sample/username ::ne-string)
+
+(s/def ::sample
+  (s/keys :req-un [:sample/username]))
+\end{clojure}
+
+\noindent
+If the data is correct, the functions will not manifest themselves in any way:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/explain ::sample
+  {:username "some user"})
+Success!
+nil
+
+(s/explain-data ::sample
+  {:username "some user"})
+nil
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/explain ::sample {:username "some user"})
+Success!
+nil
+
+(s/explain-data ::sample {:username "some user"})
+nil
+\end{clojure}
+
+\fi
+
+\noindent
+Let's try an integer instead of a name:
+
+\begin{clojure}
+(s/explain ::sample {:username 42})
+;; 42 - failed: string? in: [:username]
+;; at: [:username] spec: ::string
+\end{clojure}
+
+The output reads like this: the \verb|42| value failed to pass the \verb|string?| predicate check. The path to the value is inside the \verb|[:username]| map. The key of the spec with error is \verb|::string|.
+
+The report shows the most nested specs and predicates. I think you remember that \verb|::ne-string| is a combination of \verb|::string| and \verb|not-empty|. The error happened at the \verb|::string| stage, and it was said about it.
+
+For an empty string, the output will be different. This time, the error will be caused by \verb|not-empty|. Let's check this:
+
+\begin{clojure}
+(s/explain ::sample {:username ""})
+;; "" - failed: not-empty in: [:username]
+;; at: [:username] spec: ::ne-string
+\end{clojure}
+
+\verb|Explain| is a quick way to report a problem in a configuration or JSON file. Over time, you will learn to read it. However, the more complex the data, the less obvious is the \verb|explain| report. When there are more than three levels in the collection, the report overflows the screen. It is difficult even to divide it into parts, let alone understand. In the next section, we'll discuss an intermediate that helps us make \verb|explain| more readable.
+
+\section{Making Errors Clearer}
+
+\index{messages}
+\index{spec!errors}
+
+\label{spec-messages}
+
+When validating data, it's not just the fact of error that matters. It is more important to explain to a client exactly where they went wrong. Regardless of whether a client is a human or a program, we should add a clear text in a response. After all, it will get into the logs that employees read.
+
+We often see messages like ``Error: DATAERROR'' without any details, or a red ``check data'' text above a two-screen form. If programmers can translate machine language into human one, such nonsense can be avoided.
+
+\index{interface}
+\index{user}
+
+The phrase \texttt{"" - failed: not-empty in: [:user\-name]} not only will not tell the user anything but will scare him away by its machine nature. It looks like there is a flaw in the interface, and the user sees what he shouldn't. Such things drastically reduce the credibility of the system.
+
+To compose the message, let's go back to the \verb|s/explain-data| function. As you remember, it returns a map with complete information about the failure. Here you can see an example of such a report:
+
+\begin{clojure}
+(s/explain-data ::sample {:username ""})
+
+#:clojure.spec.alpha
+{:problems
+ ({:path [:username]
+   :pred clojure.core/not-empty
+ :val ""
+   :via [::sample ::ne-string]
+   :in [:username]})
+ :spec ::sample
+ :value {:username ""}}
+\end{clojure}
+
+\index{languages!Python}
+\index{languages!JavaScript}
+
+At first glance, it is not clear what to do with it. Some programmers give up and say the library error reporting is not good. But this is not so: the report contains all the necessary data — you just need to process it correctly.
+
+Newbies ask: why not make clear messages at the library level? For example, assign a field to a spec that says~--- ``Enter the correct address.'' Why not take a Python or JavaScript library as a sample?
+
+\index{fundamentality}
+
+I'm afraid the answer to this question won't satisfy fresh programmers. Recall the thesis from the beginning of the chapter: Spec is a \emph{fundamental library}. We, checking form fields with it, are just a separate case. This important library has many uses, so the structure of the error is fundamental too.
+
+It is difficult to create a system of errors that is fine for everyone. Each project has its own rules on how to show errors. Sometimes this is a fixed message, and other times it is a template. Sometimes we have to take into account the user's language. Taken together, these are sophisticated scenarios.
+
+If the Spec developers focused on error messages, they would be distracted from the main objective. So instead of Spec , we would get validators kind of those that dozens write for Python and JavaScript. They are boring, rigid, and lack a concept.
+
+The \verb|explain-data| map contains the keys \verb|:spec|, \verb|:value|, and \verb|:problems| with the \verb|clojure.spec.alpha| namespace. The first two are a spec and a value that were used for checking. Now we are interested in \verb|:problems|. It is a list of maps, each describing a validation error. Let's list their fields and semantics:
+
+\index{spec!forks}
+
+\begin{itemize}
+
+\item
+  \verb|:path| is a logical path of validation. A vector of keys where specs alternate with fork-tags. Conditional specs like \verb|s/or| write their labels here;
+
+\item
+  \verb|:pred| is a predicate symbol, for example \texttt{clo\-ju\-re.\-core/\-string?};
+
+\item
+  \verb|:val| is the value for which the predicate has returned false (number,  \verb|nil|, collection);
+
+\item
+  \verb|:via| is a vector of specs, along which the value has passed from an upper level to a lower;
+
+\item
+  \verb|:in| is the physical path to the value. It is a vector of keys and indexes that is passed to the \verb|get-in| function. If we execute \verb|(get-in <data> <:in>)|, we'll get the value that caused the error.
+
+\end{itemize}
+
+The report contains everything we need. Let's take the problem value from \verb|:val|. The last element of the \verb|:via| vector is the spec where the validation stopped.
+
+Let's compose a map, where a key is a spec, and a value is a clear text or template. Knowing which spec caused the error, we get the text from the map. In our case, the last element of \verb|:via| is \verb|::ne-string|. Let's assign the message ``The string must not be empty'' (or something similar) to it.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def spec-errors
+  {::ne-string
+   "The string must not be empty"})
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def spec-errors
+  {::ne-string "The string must not be empty"})
+\end{clojure}
+
+\fi
+
+Now we'll write a function that takes an error map (one of the elements of \verb|::s/problems|) and returns a message:
+
+\index{functions!get-message}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn get-message [problem]
+  (let [{:keys [via]} problem
+        spec (peek via)]
+    (get spec-errors spec)))
+
+(get-message {:via [::sample
+                    ::ne-string]})
+"The string must not be empty"
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn get-message [problem]
+  (let [{:keys [via]} problem
+        spec (peek via)]
+    (get spec-errors spec)))
+
+(get-message {:via [::sample ::ne-string]})
+"The string must not be empty"
+\end{clojure}
+
+\fi
+
+The \verb|peek| function is similar to the \verb|last| one (get the last element). The difference between the two is that \verb|last| runs from the beginning of the collection, which is inefficient. \verb|Peek| is the vector version of \verb|last| that jumps to the end immediately.
+
+We will now test the method for other fields. Add the email address to the \verb|::sample| spec:
+
+\index{regular expressions}
+\index{clojure.core!re-matches}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::email
+  (s/and
+    ::ne-string
+    (partial re-matches
+      #"(.+?)@(.+?)\.(.+?)")))
+
+(s/def :sample/email ::email)
+
+(s/def ::sample
+  (s/keys :req-un [:sample/username
+                   :sample/email]))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::email
+  (s/and
+   ::ne-string
+   (partial re-matches #"(.+?)@(.+?)\.(.+?)")))
+
+(s/def :sample/email ::email)
+
+(s/def ::sample
+  (s/keys :req-un [:sample/username
+                   :sample/email]))
+\end{clojure}
+
+\fi
+
+The \verb|::email| spec checks that the string is not empty and matches the address pattern. The pattern requires the string to have an \verb|@| and a period, with arbitrary characters between them.
+
+If we pass an empty string to \verb|email|, the last element of the \verb|via| will be \verb|::ne-string|. To save space, let's shorten the output of \verb|explain-data|:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/explain-data ::sample
+  {:username "test" :email ""})
+
+{:path [:email]
+ :pred clojure.core/not-empty
+ :val ""
+ :via [::sample ::email ::ne-string]
+ :in [:email]}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/explain-data ::sample {:username "test" :email ""})
+
+{:path [:email]
+ :pred clojure.core/not-empty
+ :val ""
+ :via [::sample ::email ::ne-string]
+ :in [:email]}
+\end{clojure}
+
+\fi
+
+A call of \verb|get-message| with this error will return an empty string message. This time, let's try an email that doesn't match the pattern. The final element of \verb|:via| will be \verb|:sample/email|. The error map looks like this:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/explain-data ::sample
+  {:username "test" :email "test"})
+
+{:path [:email]
+ :pred
+ (clojure.core/partial
+  clojure.core/re-matches
+  #"(.+?)@(.+?)\.(.+?)")
+ :val "test"
+ :via [::sample ::email]
+ :in [:email]}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/explain-data ::sample {:username "test" :email "test"})
+
+{:path [:email]
+ :pred
+ (clojure.core/partial
+  clojure.core/re-matches
+  #"(.+?)@(.+?)\.(.+?)")
+ :val "test"
+ :via [::sample ::email]
+ :in [:email]}
+\end{clojure}
+
+\fi
+
+For \verb|get-message| to return a new message, add the \verb|::email| key to the map:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def spec-errors
+  {::ne-string
+   "The string must not be empty"
+   ::email
+   "Enter the correct email address"})
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def spec-errors
+  {::ne-string "The string must not be empty"
+   ::email "Enter the correct email address"})
+\end{clojure}
+
+\fi
+
+\index{translation}
+\index{languages!ClojureScript}
+
+It remains to fill our map with other specs and messages until we cover all the options. We have built a quite simple machine-to-human translation system. It is easy to test and change for the needs of a specific project. Finalized versions of this system work in production. In one of them, forms are validated on a client side before submitting to a server. The message for widgets is obtained the same way. That is possible as the power of Spec is fully available in ClojureScript.
+
+Next, we'll look at how to improve the translation system.
+
+\subsubsection{Default Messages}
+
+What should we do if there's no translation in the map? In this case, we might return a neutral: Correct the data error. At the same time, we will log an event with the name of the spec. The log is configured so that messages from the translation module are placed in a separate file. Later, localizers will read it and add the translation.
+
+\begin{clojure}
+(def default-message
+  "Correct the data error")
+\end{clojure}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn get-better-message [problem]
+  (let [{:keys [via]} problem
+        spec (peek via)]
+    (or (get spec-errors spec)
+        (do
+          (log/warnf
+            "Missing message for spec %s"
+            spec)
+          default-message))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn get-better-message [problem]
+  (let [{:keys [via]} problem
+        spec (peek via)]
+    (or (get spec-errors spec)
+        (do (log/warnf "Missing message for spec %s" spec)
+            default-message))))
+\end{clojure}
+
+\fi
+
+\noindent
+For any unknown spec, we get a neutral message. The comment below shows the log that will appear in the console when called:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(get-better-message
+    {:via [::unknown :unknown/field]})
+;; WARN book.spec - Missing message for
+;; spec :unknown/field
+"Correct the data error"
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(get-better-message {:via [::unknown :unknown/field]})
+;; WARN book.spec - Missing message for spec :unknown/field
+"Correct the data error"
+\end{clojure}
+
+\fi
+
+\subsubsection{Bottom-up Search}
+
+By now, we've worked with the last element of the \verb|:via| vector. Let's take a look at it as a whole. To do this, we will provoke the \verb|s/explain-data| execution with an empty email. As a result, there will be a chain in the \verb|:via| field:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/explain-data ::sample
+  {:username "test" :email ""})
+
+;; :via field
+[::sample ::email ::ne-string]
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/explain-data ::sample {:username "test" :email ""})
+[::sample ::email ::ne-string] ;; :via field
+\end{clojure}
+
+\fi
+
+We should read it like this: error in the sample due to email \arr{} error in the email due to an empty string. You can see: the specs are in descending order of priority, the global object comes first, the local issue comes last. It is beneficial to start your search from a local problem and move towards a global one. First, check \verb|::ne-string|, then \verb|::email|, and, if you have found no error~--- \verb|::sample|.  Let's call this method a bottom-up search.
+
+\index{clojure.core!keep}
+
+Unlike previous solutions, we look for the translation for each element in reverse order. Both \verb|reverse| and \verb|keep| functions return lazy collections, so no computation happens until we access them. Let's return the first non-empty element as a result.
+
+\begin{clojure}
+(defn get-message
+  [problem]
+  (let [{:keys [via]} problem]
+    (->> via
+         reverse
+         (keep spec-errors)
+         first)))
+\end{clojure}
+
+This method advantage is that it preserves the required level of details in messages. For example, \verb|::email| may consist of several small specs, but due to their low level, the message will be incomprehensible. For a more obvious translation, we'll remove \verb|::ne-string| from the map and leave \verb|::email|.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def spec-errors
+  {::email
+   "Enter the correct email address"})
+
+(get-message
+  {:via [::sample ::email ::ne-string]})
+"Enter the correct email address"
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def spec-errors
+  {::email "Enter the correct email address"})
+
+(get-message {:via [::sample ::email ::ne-string]})
+"Enter the correct email address"
+\end{clojure}
+
+\fi
+
+If a field that lacks translation appears in \verb|::sample|, the search will be resolved in \verb|::sample|. A general translation for it might be a kind of ``the sample is filled in incorrectly'' to localize the problem. That useful if \verb|::sample| will become an element of another spec, it in turn becomes part of a third spec, and so on.
+
+\subsubsection{Convergence}
+
+What is convergence, and how to manage it? To clarify this, we will declare the book and movie specs with one field in them~--- the description:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def :book/description ::ne-string)
+(s/def ::book
+  (s/keys :req-un [:book/description]))
+
+(s/def :movie/description ::ne-string)
+(s/def ::movie
+  (s/keys :req-un [:movie/description]))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def :book/description ::ne-string)
+(s/def ::book (s/keys :req-un [:book/description]))
+
+(s/def :movie/description ::ne-string)
+(s/def ::movie (s/keys :req-un [:movie/description]))
+\end{clojure}
+
+\fi
+
+If we pass an empty string to the description, the \verb|:via| vector will contain the following:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/explain-data ::book
+  {:description ""})
+[::book ::ne-string]
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/explain-data ::book {:description ""})
+[::book ::ne-string]
+\end{clojure}
+
+\fi
+
+Please note that there is no \texttt{:book/de\-scription} spec in the vector. Therefore, we cannot compose a message specifically for this field, for example~--- incorrect book description. The \verb|::movie| behaves similarly: if we pass in an empty string, at the end of the via vector there will be the \verb|::ne-string| spec.
+
+The \texttt{(s/def :book/description ::ne\--string)} expression is a link. When one spec refers to another, Spec shortens the chain to reach \verb|::ne-string| immediately. In such a situation, they say that the \verb|:book/description| and \verb|:movie/description| specs \emph{converge} into \verb|::ne-string|. Sometimes convergence has an advantage: you can specify a translation for \verb|::ne-string| and refer to it in all text fields. When the \verb|:via| path is vital, the spec is reorganized.
+
+One way to do this is to replace the link with a predicate. Rewrite \verb|:book/description| as in the example below:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def ne-string
+  (every-pred string? not-empty))
+(s/def :book/description ne-string)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def ne-string (every-pred string? not-empty))
+(s/def :book/description ne-string)
+\end{clojure}
+
+\fi
+
+The description now refers not to \verb|::ne-string|, but a predicate with the same name. Below \verb|:book/description|, there will be no specs. If \verb|ne-string| returns false, \verb|:book/description| will become the last element of the \verb|:via|:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/explain-data ::book
+  {:description ""})
+{:via [::book :book/description]}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/explain-data ::book {:description ""})
+{:via [::book :book/description]}
+\end{clojure}
+
+\fi
+
+The same for movie: specify the \verb|ne-string| predicate in the \verb|:movie/description| spec, and the latter will appear in the \verb|:via| vector on error. You can add individual translations to the specs and search as we did above.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def spec-errors
+  {:book/description
+   "Enter book description"
+   :movie/description
+   "Enter movie description"})
+
+(get-message
+  {:via [::book :book/description]})
+"Enter book description"
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def spec-errors
+  {:book/description "Enter book description"
+   :movie/description "Enter movie description"})
+
+(get-message {:via [::book :book/description]})
+"Enter book description"
+\end{clojure}
+
+\fi
+
+Another way to affect convergence is to wrap a spec key in the \verb|s/spec| function:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def :book/description
+  (s/spec ::ne-string))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def :book/description (s/spec ::ne-string))
+\end{clojure}
+
+\fi
+
+In this case, the \verb|:book/description| spec will replace \verb|::ne-string| in the \verb|:via| vector:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/explain-data ::book
+  {:description ""})
+[:book.spec/book :book/description]
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/explain-data ::book {:description ""})
+[:book.spec/book :book/description]
+\end{clojure}
+
+\fi
+
+The advantage of \verb|s/spec| is that you only wrap the links, while the predicates and the rest of the code will not change.
+
+\subsubsection{Flexible Search}
+
+Let's flip the problem. Suppose there are many entities with descriptions in a project: books, films, games, and so on. It would be great if all descriptions (\verb|:movie/description|, \texttt{:book/descrip\-tion}, etc) converge to the ``incorrect description'' message. How can we do this without adding each spec to the translation?
+
+To avoid overloading of a map, let's resort to a ploy. Let our function look for a translation by the full key, and if there is none, then by name. Then the \verb|:description| key will be enough for all the specs to converge to this translation. If you need a specific phrase for a particular \verb|:book/description|, add the full version:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def spec-errors
+  {:description
+   "Incorrect description"
+   :book/description
+   "Enter book description"})
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def spec-errors
+  {:description "Incorrect description"
+   :book/description "Enter book description"})
+\end{clojure}
+
+\fi
+
+Now, we will update the search with an unqualified key and default phrase:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn get-message
+  [problem]
+  (let [{:keys [via]} problem
+        spec (peek via)]
+    (or (get spec-errors spec)
+        (get spec-errors
+          (-> spec name keyword))
+        default-message)))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn get-message
+  [problem]
+  (let [{:keys [via]} problem
+        spec (peek via)]
+    (or (get spec-errors spec)
+        (get spec-errors (-> spec name keyword))
+        default-message)))
+\end{clojure}
+
+\fi
+
+\noindent
+Here is how it acts:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(get-message
+  {:via [::movie :movie/description]})
+"Incorrect description"
+
+(get-message
+  {:via [::movie :book/description]})
+"Enter book description"
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(get-message {:via [::movie :movie/description]})
+"Incorrect description"
+
+(get-message {:via [::movie :book/description]})
+"Enter book description"
+\end{clojure}
+
+\fi
+
+\subsubsection{Multimethod}
+
+Perhaps your colleagues will like the translation system and want to use it. It would be reasonable to move the code to a library and connect it to dependencies. Then the projects will be the same in terms of messages.
+
+The disadvantage of a map is that it is difficult to expand it from the outside. To add a translation, you will have to release a new version of the library and update the dependencies. That takes time. We might provide clients with only a translation engine, and they will fill the content themselves.
+
+To do this, replace the map with a multimethod. Its dispatcher takes an error map and finds the faulty specification. Next, we will expand the multimethod with specs. Next, we will expand the multimethod with specs. With this approach, everyone can add their translations or replace somebody else's ones if they did not fit.
+
+Let's declare a multimethod with the \texttt{::ne\--string} translation:
+
+\index{multimethods!problem\arr{}text}
+
+\begin{clojure}
+(defmulti problem->text
+  (fn [{:keys [via]}]
+    (peek via)))
+
+(defmethod problem->text ::ne-string [_]
+  "The string must not be empty")
+\end{clojure}
+
+\noindent
+An example of how the multimethod works:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(problem->text
+  {:val "" :via [::email ::ne-string]})
+"The string must not be empty"
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(problem->text {:val "" :via [::email ::ne-string]})
+"The string must not be empty"
+\end{clojure}
+
+\fi
+
+The \verb|:default| key is responsible for the default action. If no translation is found, return the standard phrase:
+
+\begin{clojure}
+(defmethod problem->text :default [_]
+  default-message)
+\end{clojure}
+
+\index{inheritance}
+
+Let's remember the message for the description. We want both specs~--- \verb|:book/description| and \verb|:movie/description|~--- to converge to the common translation \verb|::description|. But at the same time, we want to be able to specify an individual translation for them. The hierarchy of keys provides this possibility. If the multimethod does not have a key, but the key inherits from the parent, the multimethod will search for the parent.
+
+To do this, we will inherit the \verb|:book/description| key from
+\verb|::description|. If an error occurs in the \verb|:book/description| spec, we'll get a common translation for any description.
+
+\index{clojure.core!derive}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defmethod problem->text
+  ::description [_] "Enter description")
+
+(derive :book/description ::description)
+
+(problem->text
+  {:val "" :via [:book/description]})
+"Enter description"
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defmethod problem->text ::description [_]
+  "Enter description")
+
+(derive :book/description ::description)
+
+(problem->text {:val "" :via [:book/description]})
+"Enter description"
+\end{clojure}
+
+\fi
+
+\noindent
+If we need an individual translation, let's expand the multimethod:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defmethod problem->text
+  :book/description [_]
+  "Enter book description")
+
+(problem->text
+  {:val "" :via [:book/description]})
+"Enter book description"
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defmethod problem->text :book/description [_]
+  "Enter book description")
+
+(problem->text {:val "" :via [:book/description]})
+"Enter book description"
+\end{clojure}
+
+\fi
+
+\index{syntax!\textbf{\_} (shading)}
+
+Note that each method takes an error map. We have shaded it with the \verb|_| character because we are not accessing it, and we do not want to generate another variable. In some cases, you can construct a phrase depending on the error fields. For example, add the current value:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defmethod problem->text
+  :book/description
+  [{:keys [val]}]
+  (format  " Error in book description: %s"
+    val))
+
+(problem->text
+  {:val "abc" :via [:book/description]})
+" Error in book description: abc"
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defmethod problem->text :book/description
+  [{:keys [val]}]
+  (format  " Error in book description: %s" val))
+
+(problem->text {:val "abc" :via [:book/description]})
+" Error in book description: abc"
+\end{clojure}
+
+\fi
+
+\emph{Note:} the \verb|derive| function takes two keys and adds their relationship to the global hierarchy. That might affect other parts of the program with inheritance-dependent logic. Clojure uses local hierarchies of keys. Learn what the third argument of the \verb|derive| function is and how to use it in conjunction with the multimethod.
+
+\subsubsection{Template}
+
+\index{templates}
+
+If the options above seemed tricky to you, try a message template. In this case, the message is made up of the field name and value (e.g., ``the email field has the test invalid value''). We can simply get the message using the \verb|format| function. The method is fast and cheap, though there is an echo of machine language in messages.
+
+We should get the field name as the last keyword of the \verb|:in| field. Let's try to take the last element. Let me remind you that \verb|:in| is the physical path to the data, which is passed to the \verb|get-in|, \verb|assoc-in|, and other functions. Its elements are not only keywords for nested maps, but also vector indexes.
+
+Here's an example where \verb|:in| ends with a number. Let's say the \verb|::post| spec is for a blog post. In addition to the title, a post can have tags, a set of non-empty strings:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def :post/title ::ne-string)
+(s/def :post/tags
+  (s/coll-of ::ne-string))
+(s/def ::post
+  (s/keys :req-un [:post/title]
+          :opt-un [:post/tags]))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def :post/title ::ne-string)
+(s/def :post/tags (s/coll-of ::ne-string))
+(s/def ::post (s/keys :req-un [:post/title]
+                      :opt-un [:post/tags]))
+\end{clojure}
+
+\fi
+
+Suppose one of the tags is empty, which doesn't make sense. Here's a quick \verb|s/explain-data| report:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/explain-data ::post
+  {:title "On Clojure"
+   :tags ["clojure" ""]})
+
+{:path [:tags]
+ :pred clojure.core/not-empty
+ :val ""
+ :via [:book.spec/post
+       :post/tags
+       :book.spec/ne-string
+       :book.spec/not-empty]
+ :in [:tags 1]}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/explain-data ::post {:title "On Clojure"
+                        :tags ["clojure" ""]})
+
+{:path [:tags]
+ :pred clojure.core/not-empty
+ :val ""
+ :via [:book.spec/post
+       :post/tags
+       :book.spec/ne-string
+       :book.spec/not-empty]
+ :in [:tags 1]}
+\end{clojure}
+
+\fi
+
+The last element~--- 1~--- correctly indicates the second, problematic, tag. Go one level up to find out the name of the field that led to the error, and you should get \verb|:tags|. The value that failed validation is in the \verb|:val| field. That's enough to build a phrase:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn get-common-message
+  [problem]
+  (let [{:keys [in val]} problem
+        field (->> in
+                   reverse
+                   (filter keyword?)
+                   first)]
+    (format
+      "The field '%s' has
+                an incorrect value '%s'."
+      (name field) val)))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn get-common-message
+  [problem]
+  (let [{:keys [in val]} problem
+        field (->> in
+                   reverse
+                   (filter keyword?)
+                   first)]
+    (format "The field '%s' has an incorrect value '%s'."
+            (name field) val)))
+\end{clojure}
+
+\fi
+
+We use single quotation marks to distinguish the field and value from the rest of the text. Let's see what the function will return:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(get-common-message
+  {:val "" :in [:tags 1]})
+"The field 'tags' has
+          an incorrect value ''."
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(get-common-message {:val "" :in [:tags 1]})
+"The field 'tags' has an incorrect value ''."
+\end{clojure}
+
+\fi
+
+If the field is multiple, one name is not enough. The message will be better if you add the value index with an error, such as \verb|'tags[1]'|. Think about how to find the sequence \tuple{keyword, number}, and finalize the algorithm.
+
+\subsection{Open Questions}
+
+We haven't covered a few more issues. They are too general to have a specific solution. We won't be writing any code in this section; we'll just discuss these topics.
+
+What should we do if localization is required, i.e., text in one of several languages, depending on the settings? Let's remake the map of errors. We'll make two levels in it. The locale code (\verb|ru|, \verb|en|) is on the first level, and the spec translations are on the second one.
+
+\index{locale }
+\index{translation}
+
+By locale, we will get a translation map, then we translate the message, as we did above. With the locale code, we can make search easy. For individual phrases, we will set more precise locales, for example, American and British English with codes \verb|en_US| and \verb|en_GB|. Let's change the search order. First, the search goes to the lower locale (\verb|en_US|), and then to the higher one (\verb|en|). If there is no American English version, we'll get that in International English. That is how message translation works in a broad sense, not just for errors.
+
+It's up to you where to read locale from.  You can save it to a session, request parameters, database~--- as it is convenient in your project. We will return to the topic of translation later in the chapter on mutability \page{translate}.
+
+The second question is how to link errors to UI. The model is separate from the view, and the forms follow this rule. It's convenient when the form is a data structure. Operations on it are pure functions that are easy to maintain. Each function returns a form in a new state.
+
+Let's imagine the form as a tree. Keys are fields, and values are widgets. A widget contains a field type, current value, and error. Each widget has a subscribed React component. It draws the input field with the current value when the widget changes. If the error is not \verb|nil|, a red message appears above the field.
+
+Validation takes the form and builds a tree of values. It has the same topology, but instead of widgets, there are input field values. We use specs to validate values and infer types from strings. In case of an error, we will get a report from \verb|explain|. For each element from the \verb|problems| field, we'll find the path, spec, and error message. We should add this message to the widget \verb|:error| field. The component that is subscribed to the widget will re-render it with an error above the field.
+
+\index{interface}
+\index{frameworks!React}
+
+We mentioned forms, React, and UI issues. Together they are called the \emph{front-end}. We will not go deep into this topic, because there will be enough talk about it for a whole book.
+
+\section{Parsing}
+
+We learned how to validate data and coerce type. Now we will move on to a more complex operation~--- parsing. This operation parses the data and looks for a structure where it did not exist before.
+
+Perhaps, you have had to write regular expressions. They are patterns that describe the structure of the text. Special functions take a string and a regular expression. They return fragments of the text that match the pattern.
+
+An IP address is an example of a regular expression. It consists of four groups separated by dots. Each group is a decimal number from 0 to 255.
+
+\index{parsing}
+\index{regular expressions}
+
+\begin{text}
+\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}
+\end{text}
+
+In the pattern, a backslash goes in front of a dot. Without a backslash, a dot can stand for any character. To refer specifically to the symbol of the dot, we escape it.
+
+We use the operators~--- \verb|+|, \verb|?|, \verb|*|, and others~--- in regular expressions. Operators indicate how many times the pattern occurs before them: one or more, none or one, an arbitrary number. A pattern captures different parts of the text, depending on the operator.
+
+Imagine regular expressions biting off a string by pieces. The part that matches the pattern goes into the result. The remainder moves on to the next pattern, and so on.
+
+Regular expressions bring us to \verb|regex|-specs. These are special ones for parsing data using a pattern. How are they different from others? The input to these functions is collections, not text.
+
+\index{spec!regex}
+
+\subsection{Simple Parsing}
+
+Suppose we need to parse an array of users. Each of them is a tuple of the form \tuple{number, email, status}. All values are strings. For each user you need to:
+
+\begin{itemize}
+
+\item
+  make sure that there are precisely three elements in the tuple;
+
+\item
+  convert a number to an integer;
+
+\item
+  check the email for minimum criteria;
+
+\item
+  bring the status to the enumeration;
+
+\item
+  get a map with proper values.
+
+\end{itemize}
+
+We are already familiar with \verb|s/conformer|. It is possible to write a function that will take a tuple and do the above. However, the former will be rigid with a too big \emph{scope}. There is another way.
+
+\index{spec!cat}
+
+The \verb|s/cat| spec parses collections. It takes a set of tags and other specs. The \verb|s/cat| matches the elements of the input collection to specifications. If they match, we get a map. Map keys are tags, and values are a call to a child spec with an element.
+
+Let's compose a spec for parsing a tuple. We'll start with the status. The spec below conforms the \verb|active| and \verb|pending| strings to specific keywords. Other values will trigger an error.
+
+\begin{clojure}
+(s/def :user/status
+  (s/and ->lower
+         (with-conformer [val]
+           (case val
+             "active"  :USER_ACTIVE
+             "pending" :USER_PENDING))))
+
+(s/def ::user
+  (s/cat :id ::->int
+         :email ::email
+         :status :user/status))
+\end{clojure}
+
+\noindent
+In the positive case, the output will be a map:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/conform ::user
+  ["1" "test@test.com" "active"])
+{:id 1
+ :email "test@test.com"
+ :status :USER_ACTIVE}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/conform ::user ["1" "test@test.com" "active"])
+{:id 1
+ :email "test@test.com"
+ :status :USER_ACTIVE}
+\end{clojure}
+
+\fi
+
+Variants with an invalid number, mail, or status will not be parsed. The specs from the examples below return \verb|::s/invalid|:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/conform ::user
+  ["" "test@test.com" "active"])
+(s/conform ::user
+  ["1" "@test.com" "active"])
+(s/conform ::user
+  ["1" "test@test.com" "unknown"])
+\end{clojure}
+
+\else
+
+ \begin{clojure}
+(s/conform ::user ["" "test@test.com" "active"])
+(s/conform ::user ["1" "@test.com" "active"])
+(s/conform ::user ["1" "test@test.com" "unknown"])
+\end{clojure}
+
+\fi
+
+\subsection{Conditional Parsing}
+
+Let's say we are working with the legacy data format. It is conditional: if there is the ``blocked'' label in front of the number, the user is blocked. For instance:
+
+\begin{text}
+blocked;1;test@test.com;active
+\end{text}
+
+It complicates our task because now the tuple consists of three
+\emph{or} four elements. The semantics of the fields have shifted: the first element is not only a number but also a blocking flag. Legacy data, and especially financial one, sometimes has weird conditions.
+
+In imperative languages, they generate an \verb|if/else| cascade. Clojure solves the problem declaratively. We will now declare the block spec that conforms the string to a flag:
+
+\begin{clojure}
+(s/def ::blocked
+  (s/and
+   ->lower
+   (s/conformer (partial = "blocked"))))
+\end{clojure}
+
+\index{spec!?}
+
+We should add this spec into the final \verb|s/cat|, but indicate that it occurs never or only once. To do this, \verb|::blocked| is wrapped in the \verb|s/?| spec. In regexes, the question mark does the same for a pattern.
+
+We have already written specs for displaying numbers and email. It remains to collect them into a composition:
+
+\begin{clojure}
+(s/def ::user
+  (s/cat :blocked (s/? ::blocked)
+         :id ::->int
+         :email ::email
+         :status :user/status))
+\end{clojure}
+
+Both tuples now match the \verb|::user| spec. If there is no label, we'll get a map as in the beginning. If a user is blocked, there will be the  \verb|:blocked| field in the map:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/conform ::user
+  ["1" "test@test.com" "active"])
+{:id 1
+ :email "test@test.com"
+ :status :USER_ACTIVE}
+
+(s/conform ::user
+  ["BLOCKED" "1"
+   "test@test.com" "active"])
+{:blocked true
+ :id 1
+ :email "test@test.com"
+ :status ...}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/conform ::user ["1" "test@test.com" "active"])
+{:id 1 :email "test@test.com" :status :USER_ACTIVE}
+
+(s/conform ::user ["BLOCKED" "1" "test@test.com" "active"])
+{:blocked true :id 1 :email "test@test.com" :status ...}
+\end{clojure}
+
+\fi
+
+Imagine a situation where the input is a collection of tuples. To avoid iterations, we declare a spec for a collection:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::users (s/coll-of ::user))
+
+(def user-data
+  [["1" "test@test.com" "active"]
+   ["Blocked" "2" "joe@doe.com"
+    "pending"]])
+
+(s/conform ::users user-data)
+[{:id 1
+  :email "test@test.com"
+  :status :USER_ACTIVE}
+ {:blocked true
+  :id 2
+  :email "joe@doe.com"
+  :status ...}]
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::users (s/coll-of ::user))
+
+(def user-data
+  [["1" "test@test.com" "active"]
+   ["Blocked" "2" "joe@doe.com" "pending"]])
+
+(s/conform ::users user-data)
+[{:id 1 :email "test@test.com" :status :USER_ACTIVE}
+ {:blocked true :id 2 :email "joe@doe.com" :status ...}]
+\end{clojure}
+
+\fi
+
+\index{clojure.core!filter}
+\index{clojure.core!complement}
+
+We should filter out blocked users using \verb|filter and the \spverb|(complement :blocked)| predicate.
+
+\subsection{Practice}
+
+\index{formats!INI}
+\index{parsing}
+
+Using Spec, we can parse not only data but also text. Let's discuss how to parse an INI file into a data map.
+\footurl{INI}{https://en.wikipedia.org/wiki/INI\_file}[INI][-3mm] is an old configuration format. It consists of titles and pairs of fields and values. Here's an example of a conditional  \verb|config.ini|:
+
+\begin{ini}
+[database]
+host=localhost
+port=5432
+user=test
+
+[server]
+host=127.0.0.1
+port=8080
+\end{ini}
+
+Our goal is to get a map, where titles are at the first level and below go fields and values
+
+\begin{clojure}
+{:database {:host "localhost"
+            :port 5432
+            :user "test"}
+ :server {:host "127.0.0.1"
+          :port 8080}}
+\end{clojure}
+
+If we discard blank lines and comments, the format boils down to the grammar \verb|([title], (key=value)*)*|, where the asterisk means as many times as you like, including none.
+
+\index{clojure.core!doall}
+\index{clojure.core!with-open}
+
+First, let's read lines from the file. Specs should not have side effects, so reading is taken out in a separate step. The \verb|line-seq| function is lazy: it returns a line collection that fills up as it walks. The \verb|doall| form forces walking over it to count all the elements. Without \verb|doall| we will exit the \verb|with-open| macro with an unfilled collection, but the file will already be closed.
+
+\index{iteration!doall}
+
+\index{clojure.core!doall}
+
+\begin{clojure}
+(require '[clojure.java.io :as io])
+
+(defn get-ini-lines [path]
+  (with-open [src (io/reader path)]
+    (doall (line-seq src))))
+\end{clojure}
+
+Let's move on to the parser. It is a spec that takes a list of lines. The algorithm is as follows:
+
+\begin{itemize}
+
+\item
+  remove blank lines and comments;
+
+\item
+  group remaining lines by titles;
+
+\item
+  split fields and values by an equal sign;
+
+\item
+  build a nested map;
+
+\item
+  coerce types and check the result.
+
+\end{itemize}
+
+Let's give a top-down description of spec as if all the components are ready. Below is a composition that solves the problem:
+
+\begin{clojure}
+(s/def ::->ini-config
+  (s/and
+   (s/conformer clear-ini-lines)
+   (s/* :ini/section)
+   (s/conformer remap-ini-data)
+   ::ini-config))
+\end{clojure}
+
+\index{function!clear-ini-lines}
+\index{clojure.core!some-fn}
+
+Now we should move on to the missing elements. The \verb|clear-ini-lines| function removes blank lines and comments. In INI, the latter begin with a pound sign.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn comment? [line]
+  (str/starts-with? line "#"))
+
+(defn clear-ini-lines [lines]
+  (remove
+    (some-fn comment? str/blank?) lines))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn comment? [line]
+  (str/starts-with? line "#"))
+
+(defn clear-ini-lines [lines]
+  (remove (some-fn comment? str/blank?) lines))
+\end{clojure}
+
+\fi
+
+\index{spec!*}
+
+The \verb|some-fn| function combines multiple predicates with the ``for any of'' logic. The \spverb|(s/* :ini/section)| spec we should read as~--- zero or more sections. Here, a section is a title and the adjacent fields and values. Let's write it as \verb|s/cat|:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def :ini/section
+  (s/cat :title
+    :ini/title :fields (s/* :ini/field)))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def :ini/section
+  (s/cat :title :ini/title :fields (s/* :ini/field)))
+\end{clojure}
+
+\fi
+
+Now, declare the \verb|:ini/title| spec. It checks if the line is a title. According to the format, a title is written in square brackets. If the first and last characters are square brackets, drop them and return the title:
+
+\begin{clojure}
+(s/def :ini/title
+  (s/and
+   #(str/starts-with? % "[")
+   #(str/ends-with? % "]")
+   (with-conformer [line]
+     (subs line 1 (dec (count line))))))
+\end{clojure}
+
+\noindent
+It's the same with regex:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def :ini/title
+  (with-conformer [line]
+    (or (second
+         (re-matches #"^\[(.+)\]$" line))
+        ::s/invalid)))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def :ini/title
+  (with-conformer [line]
+    (or (second (re-matches #"^\[(.+)\]$" line))
+        ::s/invalid)))
+\end{clojure}
+
+\fi
+
+\index{algorithms!base64}
+
+The \verb|:ini/field| spec parses a field and value. It splits a line by the equal sign. The number 2 means that there must be no more than two elements in the result: a key and a value. That is important since the value sometimes contains the equal sign (e.g., if it is a Base64 string). If we didn't get a pair, we signal an error.
+
+\begin{clojure}
+(s/def :ini/field
+  (with-conformer [line]
+    (let [pair (str/split line #"=" 2)]
+      (if (= (count pair) 2)
+        pair
+        ::s/invalid))))
+\end{clojure}
+
+I can't wait to test our work. We should wrap the draft spec into the \verb|parse-ini| function that reads the file.
+
+\begin{clojure}
+(s/def ::->ini-config
+  (s/and
+   (s/conformer clear-ini-lines)
+   (s/* :ini/section)))
+
+(defn parse-ini [path]
+  (let [lines (get-ini-lines path)]
+    (s/conform ::->ini-config lines)))
+\end{clojure}
+
+\noindent
+Here's a test result:
+
+\begin{clojure}
+(parse-ini "config.ini")
+
+[{:title "database"
+  :fields [["host" "localhost"]
+           ["port" "5432"]
+           ["user" "test"]]}
+ {:title "server"
+  :fields [["host" "127.0.0.1"]
+           ["port" "8080"]]}]
+\end{clojure}
+
+The parsing has gone well, although the structure is different from what we planned. But it doesn't matter: we extracted the data from the text, and it's easy to bring the map to the desired form. To do this, let's write the \verb|remap-ini-data| function:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn remap-ini-data [data-old]
+  (reduce
+   (fn [data-new entry]
+     (let [{:keys [title fields]} entry]
+       (assoc data-new
+         title (into {} fields))))
+   {}
+   data-old))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn remap-ini-data [data-old]
+  (reduce
+   (fn [data-new entry]
+     (let [{:keys [title fields]} entry]
+       (assoc data-new title (into {} fields))))
+   {}
+   data-old))
+\end{clojure}
+
+\fi
+
+\noindent
+If we pass the vector from the last step to it, we'll get a map:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+{"database" {"host" "localhost"
+             "port" "5432"
+             "user" "test"}
+ "server" {"host" "127.0.0.1"
+           "port" "8080"}}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+{"database" {"host" "localhost" "port" "5432" "user" "test"}
+ "server" {"host" "127.0.0.1" "port" "8080"}}
+\end{clojure}
+
+\fi
+
+It's time to write a spec for type coercion and checking. We conform port numbers to integers; host and user are not empty strings.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def :db/host ::ne-string)
+(s/def :db/port ::->int)
+(s/def :db/user ::ne-string)
+
+(s/def ::database
+  (s/keys :req-un
+    [:db/host :db/port :db/user]))
+
+(s/def :server/host ::ne-string)
+(s/def :server/port ::->int)
+
+(s/def ::server
+  (s/keys :req-un
+    [:server/host :server/port]))
+
+(s/def ::ini-config
+  (s/keys :req-un [::database ::server]))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def :db/host ::ne-string)
+(s/def :db/port ::->int)
+(s/def :db/user ::ne-string)
+
+(s/def ::database
+  (s/keys :req-un [:db/host :db/port :db/user]))
+
+(s/def :server/host ::ne-string)
+(s/def :server/port ::->int)
+
+(s/def ::server
+  (s/keys :req-un [:server/host :server/port]))
+
+(s/def ::ini-config
+  (s/keys :req-un [::database ::server]))
+\end{clojure}
+
+\fi
+
+\index{modules!clojure.walk}
+\index{functions!keywordize-keys}
+
+The final touch is to correct the type of keys in the map. At the moment, they are strings, but the \verb|::ini-config| spec expects keywords. In this case, the \verb|clojure.walk| module offers the \verb|keywordize-keys| function. It walks through a map of any nesting and changes keys. The final spec:
+
+\begin{clojure}
+(require '[clojure.walk :as walk])
+
+(s/def ::->ini-config
+  (s/and
+   (s/conformer clear-ini-lines)
+   (s/* :ini/section)
+   (s/conformer remap-ini-data)
+   (s/conformer walk/keywordize-keys)
+   ::ini-config))
+\end{clojure}
+
+\noindent
+Result:
+
+\begin{clojure}
+(parse-ini "config.ini")
+
+{:database {:host "localhost"
+            :port 5432
+            :user "test"}
+ :server {:host "127.0.0.1"
+          :port 8080}}
+\end{clojure}
+
+It seems we have gotten accurate data from the text. Note that the code is stateless and looks like a chain of steps in general. Each step is easy to fix or add a new one in between.
+
+Now we might eliminate minor flaws in the code. Let the pair \verb|"foo="| will become \verb|{:foo nil}|, not \spverb|{:foo ""}|. Remove blank characters from field names and values. Try to run our code with a large INI file.
+
+\section{Parsing the Code: Theory}
+
+\index{parsing}
+\index{macros}
+
+At the end of the topic, let's talk about how to parse code. We have already seen that Spec is suitable for parsing collections. Clojure code consists of lists. That leads to an unexpected solution: we can check the code with a spec and return an error before its running.
+
+It is convenient to do checking in macros. They are special functions that work at compile time. The macro takes code as a list of symbols. There may be errors in the code, but the macro treats them just as symbols.
+
+The task of a macro is to rebuild such a list into a Clojure-understandable one. The compiler will replace the call to the macro with what it returned and run the code. Macros are a separate milestone in learning Clojure. For now, let's look at how to check a macro with a spec.
+
+Each macro is a mini-language with an agreement on what to input. In simple cases, the code is parsed using the \verb|first| and \verb|rest| functions and conditions. We can parse complex macros with grammars, as we did with the INI file. If the code breaks the rules, we have to explain what the error is.
+
+Sometimes the same macro can be written in different ways. The \verb|defn|, a function definition, is a good example. In addition to the required parameters, it accepts additional ones: a docstring, pre- and post-validation. The function can have multiple bodies:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn my-inc
+  [x]
+  (+ x 1))
+\end{clojure}
+
+\splitter
+
+\begin{clojure}
+(defn my-inc
+  "Increase the number."
+  [x]
+  {:pre [(int? x)]
+   :post [(int? %)]}
+  (+ x 1))
+\end{clojure}
+
+\splitter
+
+\begin{clojure}
+(defn my-inc
+  ([x]
+   (my-inc x 1))
+  ([x delta]
+   (+ x delta)))
+\end{clojure}
+
+\else
+
+
+\noindent
+\begin{tabular}{ @{}p{2.5cm} @{}p{4.5cm} @{}p{3cm} }
+
+\begin{clojure}
+(defn my-inc
+  [x]
+  (+ x 1))
+\end{clojure}
+
+&
+
+\begin{clojure}
+(defn my-inc
+  "Increase the number."
+  [x]
+  {:pre [(int? x)]
+   :post [(int? %)]}
+  (+ x 1))
+\end{clojure}
+
+&
+
+\begin{clojure}
+(defn my-inc
+  ([x]
+   (my-inc x 1))
+  ([x delta]
+   (+ x delta)))
+\end{clojure}
+
+\end{tabular}
+
+
+\fi
+
+It is the same function, written in various forms. Of course, it's hard to sort out all the options manually. Before Clojure 1.10, each macro parsed the code the way it would. With the release of the spec library, the main macros have switched to spec. There is a common approach now that is easy to manage.
+
+\index{spec!cat}
+
+Let's analyze verbally~--- how we would build a spec for parsing the \verb|defn|. It's a list, so we put \verb|s/cat| at the top level. Its first element is the \verb|defn| symbol; the second is the symbol with the function name. There's (or not) a docstring after the name. A body/list of bodies is below. Here is a draft:
+
+\begin{clojure}
+(s/def ::defn
+  (s/cat :tag #{'defn}
+         :name symbol?
+         :doc (s/? string?)
+         :body ...))
+\end{clojure}
+
+What is hidden behind the \verb|:body| key is still unknown. The problem is that \verb|defn| takes either a single body or a body list. Compare the first and third columns in the example with \verb|my-inc|.
+
+Let's start by writing a spec for a standard body. We assume that the body starts with a vector of parameters. It is followed by an optional pre- and post-validating map. Then go arbitrary forms that make up the body of the function.
+
+\begin{clojure}
+(s/def :defn/body
+  (s/cat :args vector?
+         :prepost (s/? map?)
+         :code (s/* any?)))
+\end{clojure}
+
+Now we should wrap the \verb|:defn/body| spec so that it takes into account both cases: one body and several. Let's mark it with an asterisk. Since \verb|:defn/body| is a \verb|regex| spec, let's group it with \verb|s/spec|.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def :defn/body*
+  (s/alt :single :defn/body
+         :multi (s/+
+                  (s/spec :defn/body))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def :defn/body*
+  (s/alt :single :defn/body
+         :multi (s/+ (s/spec :defn/body))))
+\end{clojure}
+
+\fi
+
+\index{syntax!\textquotesingle{ }(freezing)}
+
+We'll prepare the data for the spec. It is a list that repeats the \verb|defn| expression. It consists of primitives (symbols, integers, strings) and nested collections. A list can be a combination of \verb|list| and escape symbols. The \verb|'something| expression does not calculate the symbol behind the apostrophe, but only returns it. Such a record is called a quote , which acts like freezing.
+
+\begin{clojure}
+(def defn-expr
+  (list 'defn 'my-inc
+        "Increase a number"
+        ['x]
+        {:pre [(list 'int? 'x)]} ...))
+\end{clojure}
+
+If we execute \verb|defn-expr| in the REPL, we'll see the code as it would appear in an editor. However, the frequent use of \verb|list| and apostrophes makes our code noisy and prone to mistakes. For the sake of brevity, let's freeze not individual symbols, but the entire \verb|defn| expression. That will keep the original syntax:
+
+\begin{clojure}
+(def defn-expr
+  '(defn my-inc
+     "Increase a number"
+     [x]
+     {:pre [(int? x)]
+      :post [(int? %)]}
+     (+ x 1)))
+\end{clojure}
+
+Note that we will not be aware of any errors that may be in the internal \verb|defn|. For Clojure, it is a list of symbols without any semantics. So to make sure the list has the correct structure, we're writing a spec. Let's parse our list:
+
+\begin{clojure}
+(s/conform ::defn defn-expr)
+\end{clojure}
+
+\noindent
+Result:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+{:tag defn
+ :name my-inc
+ :doc "Increase a number"
+ :body
+ [:single
+  {:args [x]
+   :prepost {:pre [(int? x)]
+             :post [(int? %)]}
+   :code [(+ x 1)]}]}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+{:tag defn
+ :name my-inc
+ :doc "Increase a number"
+ :body
+ [:single
+  {:args [x]
+   :prepost {:pre [(int? x)] :post [(int? %)]}
+   :code [(+ x 1)]}]}
+\end{clojure}
+
+\fi
+
+Please pay attention to the \verb|:body| field. It is a vector with a label and a result. For a single body, we get the \verb|:single| label and a map. For several bodies, the label will be \verb|:multi|, and the value will be a vector of maps:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+[:multi [{:args [x]
+          :code [(println 1)]}
+         {:args [x y]
+          :code [(println 2)]}]]
+\end{clojure}
+
+\else
+
+\begin{clojure}
+[:multi [{:args [x] :code [(println 1)]}
+         {:args [x y] :code [(println 2)]}]]
+\end{clojure}
+
+\fi
+
+To check if there is one body or several by a label, the \verb|case| operator is useful. Below, the \verb|result| variable contains the parsing result. The \verb|process-body| function processes the body map:
+
+\begin{clojure}
+(let [{:keys [body]} result
+      [tag body] body]
+  (case tag
+    :single
+    (process-body body)
+    :multi
+    (doseq [body body]
+      (process-body body))))
+\end{clojure}
+
+\subsection{Independent Work}
+
+\index{messages}
+
+Each level of spec expands deeper. Let's finalize function arguments: we will divide them into required and optional. For example, parameters \verb|[x y & other]| will appear as a map:
+
+\begin{clojure}
+{:req [x y] :opt other}
+\end{clojure}
+
+\noindent
+Analyze pre- and post-validating maps by analogy.
+
+Pass data with errors to the spec. What should we do in this case? How can you compose a \emph{readable} message about where the error is and what you expected? Is a map of translations suitable? Can you do better error handling than in languages for enterprise apps?
+
+The data returned by the parser spec is called an \emph{abstract syntax tree} (\footurl{AST}{https://en.wikipedia.org/wiki/Abstract\_syntax\_tree}[AST][-2mm]). It is a nested structure that is obtained from the text. AST is a significant stage in program execution. Once the tree is built, you can use its logic.
+
+\index{interpreter}
+
+Spec also works as a grammar parser: you can parse data and build a tree. You are one step away from writing a simple interpreter, a program that reads code and executes it. The tree nodes are functions, and children are arguments or other functions. Write tree traversal and its computation. Even if it's just a term paper, a simple interpreter will improve your skills.
+
+\section{Specification for Functions}
+
+\index{spec!functions}
+
+The problem with validation also applies to functions. They get data from intermediaries, and there is always the likeliness of data error. Let's remember our function with a date range. If its first date is bigger than the second one, interval validations should return false. That is where the spec comes in.
+
+Now, we will describe parameters of a function. It is \verb|s/cat| , which takes a bite out of date arguments and places it in a dictionary with the \verb|:start| and \verb|:end| keys.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/def ::date-range-args
+  (s/and
+    ;; parse args
+    (s/cat :start inst? :end inst?)
+    ;; compare args
+    (fn [{:keys [start end]}]
+      (<= (compare start end) 0))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/def ::date-range-args
+  (s/and
+   (s/cat :start inst? :end inst?) ;; parse args
+   (fn [{:keys [start end]}]       ;; compare args
+     (<= (compare start end) 0))))
+\end{clojure}
+
+\fi
+
+\index{clojure.core!compare}
+
+The second function in \verb|s/and| takes a map and compares the dates. For dates, use the \verb|compare| function that will return -1, 0, and 1 (for values: less than, equal to, and bigger than, respectively). Quick check:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(s/valid? ::date-range-args
+          [#inst "2019" #inst "2020"])
+;; true
+
+(s/valid? ::date-range-args
+          [#inst "2020" #inst "2019"])
+;; false
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(s/valid? ::date-range-args
+          [#inst "2019" #inst "2020"]) ;; true
+
+(s/valid? ::date-range-args
+          [#inst "2020" #inst "2019"]) ;; false
+\end{clojure}
+
+\fi
+
+\index{decorators}
+
+This situation suggests a decorator that takes a function and a spec. Before running the function, the decorator validates the arguments and throws an exception if an error occurs. We will do the same with the result.
+
+\index{modules!clojure.spec.test.alpha}
+\index{functions!instrument}
+
+The spec library includes a decorator, so we don't have to write a custom one. It is the \verb|instrument| function from the \verb|clojure.spec.test.alpha|. Pay attention to the namespace: the word ``test'' has crept into it. That is, the instrumentation of functions was taken out in a separate module.
+
+\index{monkey patch}
+
+\verb|Instrument| takes a symbol of the instrumented function. They set with the same symbol a spec for a function. \verb|Instrument| replaces the function with the same one, but with checks. When one module changes another, it is a kind of a \footurl{monkey patch}{https://en.wikipedia.org/wiki/Monkey\_patch}[Monkey patch][-3mm]. A functional spec is declared as the \verb|s/fdef| macro. It takes a function symbol and specs of input parameters, of the result, and their composition.
+
+\index{dates}
+\index{classes!Date}
+
+Let's write a function and spec for it. This function should count the difference between dates in seconds. If the first date is greater than the second one, the result will be negative.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(import 'java.util.Date)
+
+(defn date-range-sec
+  "Return the difference
+           between two dates in seconds."
+  [^Date date1 ^Date date2]
+  (quot (- (.getTime date2)
+           (.getTime date1))
+        1000))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(import 'java.util.Date)
+
+(defn date-range-sec
+  "Return the difference between two dates in seconds."
+  [^Date date1 ^Date date2]
+  (quot (- (.getTime date2)
+           (.getTime date1))
+        1000))
+\end{clojure}
+
+\fi
+
+The \verb|^Date| tags are required for the compiler to know the type of \verb|date1| and \verb|date2| objects. If there is no tag, Clojure will find the type by reflection at runtime, which is slower. Let's calculate the difference between two days (in seconds):
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(date-range-sec #inst "2019-01-01"
+                #inst "2019-01-02")
+86400
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(date-range-sec #inst "2019-01-01" #inst "2019-01-02")
+86400
+\end{clojure}
+
+\fi
+
+\noindent
+If we swap the dates, we'll get the same number with a minus.
+
+Then, we'll describe the functional spec with the \verb|date-range-sec| symbol. The \verb|:args| key is indicated the spec of the incoming parameters. It's a list, so \verb|s/cat| comes in handy for it. This spec splits a list as a map so that the specs below work with keys.
+
+The \verb|:ret| key stands for a result spec. Most often, it is a check for an integer (\verb|int?|), or a string (\verb|string?|), or their \verb|nilable| versions that allow \verb|nil|: \verb|(s/nilable int?)|, and so on.
+
+\index{spec!fdef}
+
+\begin{clojure}
+(s/fdef date-range-sec
+  :args (s/cat :start inst? :end inst?)
+  :ret int?)
+\end{clojure}
+
+You may pass ready-made specs to the \verb|:args| and \verb|:ret| keys; it is useful for reuse. You can have multiple specs for a date range.
+
+When created, a functional spec does not change the function. It only declares checks but does not run them. To replace a function with its instrumented version, call \verb|instrument|:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(require '[clojure.spec.test.alpha
+           :refer [instrument]])
+(instrument `date-range-sec)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(require '[clojure.spec.test.alpha :refer [instrument]])
+(instrument `date-range-sec)
+\end{clojure}
+
+\fi
+
+\index{syntax!\textasciigrave{ }(freezing)}
+
+The function symbol must be fully-qualified (with a namespace). To add the current namespace to a symbol, we start writing it with a backquote \verb|`|.
+
+Now \verb|date-range-sec| should check the arguments and the result. What happens if we pass an invalid argument to an instrumented function? We'll get the \verb|ExceptionInfo| exception:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(date-range-sec nil #inst "2019")
+;; Execution error - invalid arguments
+;; to date-range-sec
+;; nil - failed: inst? at: [:start]
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(date-range-sec nil #inst "2019")
+;; Execution error - invalid arguments to date-range-sec
+;; nil - failed: inst? at: [:start]
+\end{clojure}
+
+\fi
+
+\index{spec!explain}
+\index{report!explain}
+
+The message and the body are familiar to us. The \verb|message| field contains the text from the \verb|s/explain-str| function. The report from \verb|s/explain-data| is in the \verb|data| field. To get to it, we must pass the exception to the \verb|(ex-data e)| function.
+
+\subsection{Documentation}
+
+\index{documentation}
+\index{modules!clojure.repl}
+
+Functional spec improves documentation. The \verb|doc| function from the \verb|clojure.repl| module outputs documentation about the requested one. With the advent of Spec, this function began to behave differently. In addition to documentation, it returns the spec, if any. The documentation for \verb|date-range-sec| looks like this after declaring the spec:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(clojure.repl/doc date-range-sec)
+-------------------------
+([date1 date2])
+  Return the difference
+            between two dates in seconds.
+Spec
+  args: (cat :start inst? :end inst?)
+  ret: int?
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(clojure.repl/doc date-range-sec)
+-------------------------
+([date1 date2])
+  Return the difference between two dates in seconds.
+Spec
+  args: (cat :start inst? :end inst?)
+  ret: int?
+\end{clojure}
+
+\fi
+
+\index{libraries!Autodoc}
+
+IDE and editors depend on the \verb|doc| function to show tips on arguments. \footurl{Autodoc}{https://github.com/tomfaulhaber/autodoc}[Autodoc][-3mm], a utility for building documentation, adds specs to HTML files.
+
+\subsection{Performance}
+
+\index{performance}
+
+\verb|Instrument| helps with testing. During testing, functions are instrumented to identify errors. This is done using a module that runs the \verb|(instrument ...)| series on load. The project is designed so that the module is loaded only for the duration of the tests. If the function receives the invalid arguments, it will become noticeable.
+
+\index{benchmark}
+
+\verb|Instrument| shouldn't be used in production because it slows down the code. Let's write a benchmark that calls a function many times:
+
+\index{clojure.core!time}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(time
+ (dotimes [n 10000]
+   (date-range-sec #inst "2019"
+                   #inst "2020")))
+;; Elapsed time: 1.783962 msecs
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(time
+ (dotimes [n 10000]
+   (date-range-sec #inst "2019" #inst "2020")))
+;; Elapsed time: 1.783962 msecs
+\end{clojure}
+
+\fi
+
+\noindent
+The same after instrumentation:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(time
+ (dotimes [n 10000]
+   (date-range-sec #inst "2019"
+                   #inst "2020")))
+;; Elapsed time: 116.984496 msecs
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(time
+ (dotimes [n 10000]
+   (date-range-sec #inst "2019" #inst "2020")))
+;; Elapsed time: 116.984496 msecs
+\end{clojure}
+
+\fi
+
+\index{tests}
+
+Time has increased a hundredfold! Validation slows down the application \emph{significantly}. Therefore, \verb|instrument| does not pretend to be run in production: this is too expensive. However, during testing, we don't care about speed. During the run, the code is covered with as many checks as possible to catch all errors.
+
+\section{Reuse of Specs}
+
+\index{reuse}
+\index{libraries!JDBC}
+
+The libraries in Clojure are usually supplied with specs to help other developers. If the library often works with some data structure, describe it with a spec. \footurl{JDBC}{https://github.com/clojure/java.jdbc}[JDBC][-7mm], a wrapper for relational databases, is a good example.
+
+The database connection is defined with a map with the keys \verb|:host|, \verb|:port|, \verb|:user|, and others. Usually, one reads a map from the configuration. Before connecting, you need to check it so as not to get \verb|NPE| and other oddities.
+
+\index{NPE}
+
+Suppose the configuration is described in the EDN resource. The \verb|:db| field sets the connection to the database.
+
+\index{formats!EDN}
+
+\begin{clojure}
+{:db {:dbtype "mysql"
+      :host "127.0.0.1"
+      :port 3306
+      :dbname "project"
+      :user "user"}}
+\end{clojure}
+
+The keys~--- \verb|:dbtype|, \verb|:host|, and others~--- are already described in the library. One of the JDBC modules carries the connection and basic functionality specs. We'll reuse them:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(require
+  '[clojure.java.jdbc.spec :as jdbc])
+(s/def ::db ::jdbc/db-spec)
+(s/def ::config (s/keys :req-un [::db]))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(require '[clojure.java.jdbc.spec :as jdbc])
+(s/def ::db ::jdbc/db-spec)
+(s/def ::config (s/keys :req-un [::db]))
+\end{clojure}
+
+\fi
+
+\noindent
+Let's read the configuration from the file and check with the spec:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def config
+  (read-string (slurp "config.edn")))
+(s/valid? ::config config)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def config (read-string (slurp "config.edn")))
+(s/valid? ::config config)
+\end{clojure}
+
+\fi
+
+\label{jdbc-conform-warning}
+
+\index{spec!or}
+
+Be careful with the \verb|::jdbc/db-spec| spec~--- it is a tricky one with the \verb|s/or| macros that create forks. If we pass it to \verb|s/conform|, we'll get the fields with tags (lines 3, 4, 6):
+
+\begin{clojure/lines}
+(s/conform ::config config)
+{:db
+ [:friendly
+  {:dbtype   [:name "mysql"]
+   :host     "127.0.0.1"
+   :port     [:port 3306]
+   :dbname   "project"
+   :user     "user"
+   :password "********"}]}
+\end{clojure/lines}
+
+The result does not work with \verb|jdbc/query| and other JDBC functions. We decided to use \verb|s/valid?| only to leave the structure the same.
+
+Sometimes they take out specs to a separate library. That is what the developers of \footurl{Alia}{https://github.com/mpenet/alia}[Alia][-2mm], a client for the Cassandra database, did. The \verb|qbits.alia| project contains basic functionality for working with the database. The specs come in the \verb|cc.qbits/alia-spec| package which is included separately.
+
+\section{Additions}
+
+Spec is shipped with Clojure and therefore is not updated as often as the developers would like. Spec additions are released as libraries. Among others, Expound and Spec.tools deserve attention. Here is a brief description of the capabilities of each of them.
+
+\index{libraries!Expound}
+
+The \footurl{Expound}{https://github.com/bhb/expound}[Expound] library improves error reporting. The \verb|expound| function signature is similar to \verb|s/explain|: it also takes spec and data. The new error message looks like this:
+
+\index{spec!errors}
+\index{messages}
+
+\begin{clojure}
+(expound/expound string? 1)
+-- Spec failed --------------------
+  1
+should satisfy
+  string?
+-------------------------
+Detected 1 error
+\end{clojure}
+
+\index{spec!explain}
+
+This is still a machine text that a user shouldn't see. However, it is better than the raw \verb|s/explain| text; engineers who don't know Clojure can read it. \verb|Expound| is suitable for checking the configuration at the start of the application. We update the configuration frequently, so a clear bug report is helpful.
+
+\index{organizations!Metosin}
+\index{libraries!Spec.tools}
+\index{web development!Swagger}
+\index{web development!REST}
+
+The Metosin developers have collected the improvements for the spec library in the \footurl{Spec.tools}{https://github.com/metosin/spec-tools}[Spec tools] project. At the core of the library lies the \verb|Spec| object. It wraps a standard spec and adds new methods to it. Using Spec.tools, one forms a JSON schema and describes a REST API according to the Swagger standard. The library acts as an intermediary between the REST framework and a spec.
+
+\section{What's Next for Spec?}
+
+\index{libraries!Schema}
+\index{libraries!Bouncer}
+
+To date, the Spec package still hasn't gotten rid of the alpha part in the name. Authors are experimenting with specs, looking for better ways to validate. That confuses some developers who fear that at the end of the experiment, the Spec authors will get rid of it. So they use other solutions (e.g., \footurl{Schema}{https://github.com/plumatic/schema}[Schema][-27mm],
+\footurl{Bouncer}{https://github.com/leonardoborges/bouncer}[Bouncer][-4mm], etc.).
+
+Separate development teams are writing wrappers over Spec to expand its capabilities. For example, Spec.tools, which we have talked about, binds specs with JSON schema and tools like Swagger.
+
+\index{people!Rich Hickey}
+\index{video!Maybe Not}
+
+In his \footurl{Maybe Not}{https://youtube.com/watch?v=YR5WdGrpoug}[Maybe\\*Not] talk,Rich Hickey announced the second version of the spec library. They should simplify the work with maps (using the \verb|select| spec), and with multiple types (when the value is a string or a number). It is an open-source development, but it's too early to talk about the results. We'll talk about the second version beyond the scope of this chapter.
+
+\section{Summary}
+
+Spec is a Clojure library that comes with the language. Spec offers a set of functions and macros. They are used to describe the rules that the data must follow. The rules are predicates, i.e., functions that return true or false.
+
+They are more flexible and powerful than types. If the value is of a proper type, this does not guarantee correctness. Classes like \verb|UnixPort| are not types~--- they are runtime validation. It binds to calling the class using syntax.
+
+Predicates combine with each other, unlike classes. It is easy to compose a predicate with ``each of'' or ``any of'' logic, and others.
+
+The library converts (conforms) old data to new ones. The \verb|s/conform| function wraps another function to return a conformed value. For what is this? We use this to coercion strings to numbers and dates.
+
+The Spec offers regex specs similar to regular expressions. They differ from ordinary specs in that they capture part of a collection. They write data parsers on regex specs, including those for Clojure. Basic macros validate a body using Spec.
+
+The library is useful when running tests. The \verb|instrument| function modifies another function so that a spec can check its arguments. That makes the tests more reliable, although it slows down the call. The functional spec becomes part of the documentation.
+
+Spec does not offer solutions for error messages. It depends on the project: how to build them and show them a client. One approach is based on a map, where keys are specs, and values are an error text or translation tag. Replacing a map with a multimethod makes it easier for consumers to expand it.
+
+We have reviewed the main features of the library. Alas, we had to leave generators, multi-specs, and other exciting things outside the scope of this discussion. You can find that all in the official documentation. We do not say goodbye to specs~--- we will return to them in the next chapters.

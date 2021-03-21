@@ -1,0 +1,552 @@
+
+\noindent
+\begin{tabular}{ @{}p{5.2cm} @{}p{5.2cm} }
+
+\begin{english}
+  \begin{clojure/lines}
+;; bad
+(deftest test-page-index
+  (let [resp (page-index {...})
+        {:keys [status]} resp]
+    (is (= 200 status))))
+  \end{clojure/lines}
+\end{english}
+
+&
+
+\begin{english}
+  \begin{clojure}
+;; good
+(deftest test-page-index
+  (let [resp (entire-app {...})
+        {:keys [status]} resp]
+    (is (= 200 status))))
+  \end{clojure}
+\end{english}
+
+\end{tabular}
+
+
+Underfull \hbox (badness 1496) in paragraph at lines 444--448
+Underfull \hbox (badness 1102) in paragraph at lines 864--867
+Overfull \hbox (3.72946pt too wide) in paragraph at lines 1247--1249
+Underfull \hbox (badness 1348) in paragraph at lines 1408--1411
+Underfull \hbox (badness 1173) in paragraph at lines 1519--1521
+
+`\(.+?\)`
+\\hl{\1}
+
+`\(.+?\)`
+\\hl{\1}
+
+\\hl{\(.+?\)}
+\\spverb|\1|
+
+^## \(.+?\)$
+\\section{\1}
+
+^### \(.+?\)$
+\\subsection{\1}
+
+`\(.+?\)`
+\\spverb|\1|
+
+^~~~.+?$
+\\begin{verbatim}
+
+^~~~$
+\\end{verbatim}
+
+\*\*\(.+?\)\*\*
+\\emph{\1}
+
+ --
+~---
+
+ —
+~---
+
+quotes
+ident
+
+\rule{\textwidth}{.5pt}
+
+
+елечки
+spec -- summary
+spec -- s/tuple
+spec -- угловые кавычки
+
+
+web more chapter tags
+
+
+{code}
+{verbatim}
+
+TODO
+less Рассмотрим
+
+\subsection{Ключ :fn}
+
+Функциональная спека принимает ключ \spverb|:fn|. Это спека для третей стадии
+проверки. В нее одновременно попадают аргументы и результат. Иногда результат
+зависит от параметров по особым правилам. Например, если функция находит число
+из диапазона, проверка на \spverb|int?| недостаточна. Нужно убедиться, что число
+действительно не выходит за границы аргументов.
+
+Спека \spverb|:fn| получает словарь с ключами \spverb|:args| и \spverb|:ret|. В
+\spverb|:args| находятся аргументы, которые вернула спека с ключом
+\spverb|:args|. В \spverb|:ret|~--- результат функции. Спека должна их сравнить
+и вернуть истину или ложь.
+
+Для функции \spverb|date-range-sec| действует правило: если первая дата больше
+второй, то результат отрицательный. Напишите спеку \spverb|:fn|, которая
+проверяет это условие. Тем самым вы предотвратите случай, когда кто-то решит,
+что результат должен быть по модулю.
+
+\begin{verbatim}
+(s/fdef date-range-sec
+  :args (s/cat :start inst? :end inst?)
+  :ret int?
+)
+\end{verbatim}
+
+https://clojure.org/guides/spec#_specing_functions
+
+table of code (3 columns)
+1st chapter headings
+
+(defn install-better-logging []
+  (alter-var-root
+   (var clojure.tools.logging/log*)
+   (fn [log*] ;; origin log function
+     (fn [logger level throwable message]
+       (if throwable
+         (log* logger level nil
+               (str message \newline
+                    (with-out-str
+                      (ex-print throwable))))
+         (log* logger level throwable message))))))
+
+Reflection warning,  - reference to field toString can't be resolved.
+
+\begin{figure}[!ht]
+
+\begin{verbatim}
+version: '2'
+services:
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_DB: project_db
+      POSTGRES_USER: project_user
+      POSTGRES_PASSWORD: project_secret
+\end{verbatim}
+
+%% С точки зрения системы образ это черный ящик. Технически возможно подключиться к
+%% запущенному образу (он называется контейнер). Но во-первых, изменения контейнере
+%% не сохраняются в образ и живут в памяти до завершения работы. Во-вторых,
+%% подключаться к пяти экземплярам приложения и менять что-то вручную утомительно и
+%% непродуктивно. Остается только собрать образ с новым конфигурационным файлом на
+%% борту, загружать его в хранилище и перезапускать сервис, что в целом долго.
+
+%% Облачные платформы достаточно развиты, чтобы избежать таких сценариев. В панели
+%% администратора для каждого сервиса есть форма с переменными среды, которые
+%% процесс получит при старте. Если приложение читает конфигурацию из среды,
+%% достаточно поменять значение прямо в форме и перезагрузить сервис.
+
+%% Чтобы проверить регистрацию, понадобится запущенная система: веб-сервер,
+%% почтовый сервер, база данных. Интеграционный тест подключается к браузеру по
+%% протоколу WebDriver\footurl{https://www.w3.org/TR/webdriver/} и командует
+%% им. Открывает страницу регистрации, вводит данные и нажимает кнопку. Проверяет,
+%% что появился текст с просьбой проверить почту. По протоколу SMTP скачивает
+%% последнее письмо. Ищет ссылку активации регулярным выражением. Открывает ссылку
+%% в новой вкладке. Переходит на страницу авторизации и вводит почту и
+%% пароль. Убеждается, что попал в личный кабинет.
+
+
+(defn wrap-headers-kw
+[handler]
+(fn [req]
+(-> req
+(update :headers keywordize-keys)
+handler
+(update :headers stringify-keys)))) ;; <-
+
+
+https://grishaev.me/clj-book-web-1/#comment-4519528307
+
+table for code
+syntax highlight
+use minted
+
+
+\begin{verbatim}
+Fail in test-square-roots
+One root ;; message from the testing macro
+expected: nil
+  actual: -3
+\end{verbatim}
+
+
+:once 1 starts
+ :once 2 starts
+  :each 3 starts   +
+   :each 4 starts  | test1
+   :each 4 ends    |
+  :each 3 ends     +
+  :each 3 starts   +
+   :each 4 starts  | test2
+   :each 4 ends    |
+  :each 3 ends     +
+  :each 3 starts   +
+   :each 4 starts  | test3
+   :each 4 ends    |
+  :each 3 ends     +
+  :each 3 starts   +
+   :each 4 starts  | test4
+   :each 4 ends    |
+  :each 3 ends     +
+ :once 2 ends
+:once 1 ends
+
+
+%% \usepackage{qrcode}
+
+%% \marginpar{\qrcode[height=1cm]{https://test}}
+
+%% \begin{wrapfigure}{r}{0.5\textwidth}
+%%     \qrcode[height=1cm]{https://github.com/exoscale/obwald}
+%% \end{wrapfigure}
+
+Это справедливо: без \spverb|is| тест может подать сигнал об ошибке только
+исключением, что ведет к ряду проблем. Исключение и неверный результат это
+разные сигналы. Например, функция может давать верный результат, а деление на
+ноль происходит только в особых случаях. Если заменить деление на умножение, мы
+больше никогда не получим ArithmeticException, но результат будет далек от
+истины.
+
+
+https://tex.stackexchange.com/questions/97384/why-does-the-marginpar-not-appear-on-the-left-page
+
+\newcommand{\footurl}[1]{%
+\footnote{\StrSubstitute{#1}{https://}{}}
+\marginpar{\qrcode[height=10mm]{#1}}
+}
+
+
+  marginparwidth=10mm,     % + <- Width of your marginpar
+  marginparsep=1mm,        % + <- Gap between text block and marginpar
+
+
+https://www.overleaf.com/learn/latex/Code_Highlighting_with_minted#Reference_guide
+https://github.com/lofic/pygments-style-lofic
+https://help.farbox.com/pygments.html
+https://github.com/gpoore/minted/issues/176
+https://quantixed.org/2018/10/23/new-lexicon-how-to-add-a-custom-minted-lexer-in-overleaf/
+https://github.com/pygments/pygments/blob/48e55050f8bec34d57a1a86e06e779c6288b8341/pygments/lexers/jvm.py
+https://pbelmans.ncag.info/blog/2011/03/06/how-to-change-pygments-styles-and-a-university-of-antwerp-style/
+https://github.com/pygments/pygments/blob/master/pygments/styles/bw.py
+https://github.com/pbelmans/ua-pygments-style
+
+https://tex.stackexchange.com/questions/444122/pass-parameter-1-to-minteds-mintinline-when-1-begins-with
+https://tex.stackexchange.com/questions/394072/own-command-for-mintinline-cannot-handle-hash-character
+
+http://dkhramov.dp.ua/Comp.CyrillicInListingsTex
+
+\newenvironment{code}[1]{\VerbatimEnvironment\begin{otherlanguage}{english}\begin{minted}{#1}}{\end{minted}\end{otherlanguage}}
+
+\usepackage{minted}
+\usemintedstyle{bw}
+
+
+\noindent
+\begin{tabular}{ @{}p{5cm} @{}p{5cm} }
+
+\begin{verbatim}
+\end{verbatim}
+
+&
+
+\begin{verbatim}
+\end{verbatim}
+
+\end{tabular}
+
+
+\spverb|integrant| Integrant
+\spverb|Integrant| Integrant
+\spverb|component| Component
+\spverb|Component| Component
+\spverb|mount| Mount
+\spverb|Mount| Mount
+
+
+:headers
+
+\begin{verbatim} \begin{code}{clojure}
+\end{verbatim} \end{code}
+
+
+{:content-type "text/plain"} {"content-type" "text/plain"}
+
+%% \begin{minted}[linenos,breaklines]{text}
+
+https://stackoverflow.com/questions/6886024/how-to-replace-a-search-with-multiple-lines-in-emacs
+
+%% a5paper
+%% \usepackage{lmodern}
+
+\begin{verbatim}
+
+\begin{english}
+  \begin{clojure}
+
+\end{verbatim}
+
+  \end{clojure}
+\end{english}
+
+%% Это
+%% значит, что если метод start вернул не компонент, а словарь, мы не сможем
+%% вызвать правильный stop для этого словаря.
+
+Система не должна быть запущена частично. Такое может случится, если один из
+компонентов бросил исключение на середине обхода. Это досадная ситуация, потому
+что есть риск застрять в пограничном состоянии. Если включить систему во второй
+раз, получим конфликты портов или компоненты-дубли.
+
+Будет правильно, если дойдя до проблемного компонента, загрузчик системы не
+бросит исключение, а поместит его в переменную. Затем пойдет в обратном порядке
+и выключит все, что успел включить. И только потом бросит исключение, которое
+поймал.
+
+
+(defn ->conformer
+  ([f]
+   (->conformer f nil))
+  ([f unf]
+   (s/conformer
+    (fn [x]
+      (try
+        (f x)
+        (catch Throwable e
+          ::s/invalid)))
+    (or unf identity))))
+
+
+(defmacro with-conformer
+  [[bind] & body]
+  `(->conformer
+    (fn [~bind] ~@body)))
+
+Классы одного фреймворка не работаю с другим и наоборот. Рассмотрим язык Python
+и фреймворки Django и Flask. Оба следуют схеме, что мы описали. Запрос в Django
+представлен классом \spverb|django.http.HttpRequest|, а во Flask~---
+\spverb|flask.Request|. Одного взгляда достаточно, чтобы увидеть, насколько они
+отличаются. У классов разные методы и поля. То, что есть в первом классе,
+отсутствует во втором. Использовать \spverb|flask.Request| в проекте на Django
+невозможно.
+
+Результат каждого шага проверяют по разным критериям. Когда из
+\spverb|Content-Length| получают число, учитывают ошибку в разборе
+строки. Результат \spverb|-42| неверный, потому что число байт не может быть
+отрицательным.
+
+В Clojure пространства нужны, чтобы разделить одноим\"{е}нные поля у разных
+сущностей, например \spverb|:user/name| и \spverb|:project/name|.
+
+%% TODO s/unform jdbc
+%% Для подключения к базе данных укажем готовую спеку из JDBC:
+%% \begin{english}
+%%   \begin{clojure}
+%% (require '[clojure.java.jdbc.spec :as jdbc])
+%% (s/def ::db ::jdbc/db-spec)
+%%   \end{clojure}
+%% \end{english}
+
+%% \widowpenalty=10000
+%% \clubpenalty=10000
+%% \tolerance=500
+%% \hyphenpenalty=500
+
+%% \sloppy
+%% \everypar{\looseness=-1}
+
+\begin{english}
+  \begin{clojure}
+(let [ns-symbols (->> config
+                      keys
+                      (map namespace)
+                      (map symbol))]
+  (doseq [ns-symbol ns-symbols]
+    (require ns-symbol)))
+  \end{clojure}
+\end{english}
+
+
+\noindent
+\begin{tabular}{ @{}p{5.0cm} @{}p{5.0cm} }
+
+\begin{english}
+  \begin{clojure}
+;; why this?
+(assoc this :server nil)
+
+
+  \end{clojure}
+\end{english}
+
+&
+
+\begin{english}
+  \begin{clojure}
+;; but not this?
+(dissoc this :server)
+  \end{clojure}
+\end{english}
+
+\end{tabular}
+
+\vspace{-2em}
+
+this (assoc this :flag flag)   ;; (1)
+\ding{192}
+
+(binding [*exit* nil] (set! *exit* 100) *exit*)
+
+(-> #'rand-uuid meta :ns ns-name str (clojure.string/starts-with? "partner-api."))
+-------------
+
+# .PHONY: full
+# full:
+# 	egrep -A 1 -B 1 -i 'overfull|underfull' main.log
+
+
+Оператор \verb|@| мы обсудим в
+следующей главе на примере атома \page{deref-intro}.
+
+-------------
+
+Package microtype Warning: You are using the `ragged2e' package.
+(microtype)                Adjustment of interword spacing may lead to
+(microtype)                undesired results when used with `ragged2e'.
+(microtype)                In this case, disable the `spacing' option.
+
+\textquotesingle  \textasciigrave
+
+
+     :headers {"content-type" "text/plain"}
+
+%% (require '[clojure.string :as str])
+
+
++А так~--- напечатать построчно (получим столбик тех же строк):
+
++\begin{figure}[ht!]
++  \small
+
+-;; Get user info error
+-;; Auth error
+-;; HTTP error
+
++Clojure, и это сбивает с толку. Шумные трейсы~--- справедливый упрёк в адрес
+
++\begin{center}
++  \uwave{\hspace{5cm}}
++\end{center}
+
+-----------------
+  \begin{minted}[linenos, firstnumber=7]{clojure}
+  \end{minted}
+
+-----------------
+
+-----------------
+
+\begin{listing}[ht!]
+  \small
+
+\caption{}
+\label{fig:}
+
+\end{listing}
+
+-----------------
+
+\begin{figure}[h!]
+  \small
+
+\chart{}
+
+\caption{}
+\label{fig:}
+
+\end{figure}
+
+------------------
+
+\noindent
+\begin{tabular}{ @{}p{5cm} @{}p{5cm} }
+
+\begin{english}
+  \begin{clojure}
+  \end{clojure}
+\end{english}
+
+&
+
+\begin{english}
+  \begin{clojure}
+  \end{clojure}
+\end{english}
+
+\end{tabular}
+
+------------------
+
+
+\ifx\MODE\PRINT
+\fi
+
+\ifx\MODE\web
+\fi
+
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=blue,
+    urlcolor=blue,
+}
+
+%% \newcommand{\tuple}[1]{$\langle$#1$\rangle$}
+
+\setminted{numbersep=1mm}
+
+xleftmargin=\parindent
+
+%% \begin{listing}[ht!]
+%%   \small
+
+%% \caption{Интеграционный тест с Etaoin}
+%% \label{fig:etaoin-test}
+%% \end{listing}
+
+
+
+Книга рассказывает о Clojure современном диалекте Лиспа. Это функциональный язык с акцентом на неизменяемость и многопоточность. Он появился десять лет назад и постепенно набирает популярность в России. В семи главах мы рассмотрим, как работать с Clojure на производстве.
+
+Эта книга не для тех, кто учит язык с нуля. Ожидается, что читатель знаком с Clojure или другим диалектом Лиспа. Чтобы лучше усвоить материал, желательно иметь опыт программирования. Для аудитории продвинутого уровня.
+
+
+PDF для печати формата А5
+PDF для планшета (см. скриншот)
+
+Версии для Kindle и телефона в процессе работы, и вы сможете скачать их позже. Форматы ebub и fb2 не планируются, потому что они плохо передают код, а это центральная часть книги.
+
++\ifx\MODE\PRINT
++\setlength{\cftbeforetoctitleskip}{40pt}
++\setlength{\cftparskip}{1pt}
++\fi

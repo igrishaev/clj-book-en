@@ -1,0 +1,3191 @@
+\chapter{Mutability}
+
+\index{mutability}
+
+\begin{teaser}
+In classical languages, data is mutable, and a standard library offers restrictions: locks, atomic actions, and persistent collections. In contrast, Clojure data are persistent and mutable types are pushed into the background. It is by design since immutability is the basic idea of the language.
+\end{teaser}
+
+Clojure tutorials teach us persistent collections.
+The approach is correct, but when a state appears, beginners might experience some difficulties.
+So in this chapter, I want to walk you through a different way: we'll look at how to manage state in programs.
+
+\section{Common Problems}
+
+In Clojure, writing in an imperative style (which emphasizes data changing) is difficult. For example, to get a list of doubled numbers, follow the steps:
+
+\index{iteration}
+
+\begin{itemize}
+\item
+  create an empty list as a future result;
+\item
+  go through the initial list's elements;
+\item
+  calculate a new one on each step;
+\item
+  add the former to the result.
+\end{itemize}
+
+Since the base types of Clojure are immutable, we cannot apply the above algorithm to them. Those programmers who have come to Clojure from imperative languages cannot write code with persistent collections at first. They are so used to changing data that immutability seems like a physical limitation.
+
+The Clojure creator believes mutability is the major problem in software development.
+When we write the code, we see its initial state, in which it is in the first tick of machine time.
+Then the program initiates the classes, fills in the fields, and the objects change.
+
+Investigating some errors is difficult because the code and state diverge. To fix the error, we will have to repeat it in the local environment. However, getting the code into a concrete state is not easy. Immutable data cuts off a whole layer of errors that imperative languages are prone to.
+
+\index{languages!Python}
+
+Let’s take a look at the following examples in Python. The module holds default request parameters. The \verb|api_call| function gets additional parameters, combines them with the standard ones, and sends them to an HTTP client:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{python/lines}
+DEFAULT_PARAMS = {
+    "allow_redirects": True,
+    "timeout": 5,
+    "headers": {"Content-Type":
+                "application/json"},
+    "auth": ("username", "password"),
+}
+
+def api_call(**params):
+    api_params = DEFAULT_PARAMS
+    api_params.update(params)
+    url = "https://api.host.com"
+    response = \
+      requests.post(url, **api_params)
+    return response.json()
+\end{python/lines}
+
+\else
+
+\begin{python/lines}
+DEFAULT_PARAMS = {
+    "allow_redirects": True,
+    "timeout": 5,
+    "headers": {"Content-Type": "application/json"},
+    "auth": ("username", "password"),
+}
+
+def api_call(**params):
+    api_params = DEFAULT_PARAMS
+    api_params.update(params)
+    resp = requests.post("https://api.host.com", **api_params)
+    return resp.json()
+\end{python/lines}
+
+\fi
+
+\index{pass by reference}
+
+There is a crude error in the \verb|api_call| body: the \verb|api_params| variable gets not a copy of the global parameters but a \emph{reference} to them \ifx\DEVICETYPE\MOBILE\coderef{10}\else\coderef{9}\fi. When trying to change \verb|api_params|, instead, we are changing \verb|DEFAULT_PARAMS|
+\ifx\DEVICETYPE\MOBILE\coderef{11}\else\coderef{10}\fi. For each call, the global parameters change, which leads to erratic program behavior.
+The state of the program and the code in our minds are out of sync.
+
+In a job interview, you may often hear a question like the one below. Imagine a function with the following signature. Please, explain what is wrong with it and give an example of the error.
+
+\begin{python}
+def foo(bar=[]):
+\end{python}
+
+Answer: The default function parameters are created once. In this case, \verb|bar| is equal to an empty list. In Python, the list is mutable. If nothing was passed to \verb|bar|, we get the original list. Let's add an element to it, and next time \verb|bar| will be not empty:
+
+\begin{python}
+def foo(bar=[]):
+    bar.append(1)
+    return bar
+\end{python}
+
+Calling \verb|foo| will return lists \verb|[1]|, \verb|[1, 1]|, and so on. Even worse: if you save the result of \verb|foo| to a variable and later add an element to it, in fact, the same ill-fated \verb|bar| will change.
+
+Modern IDEs checks code for implicit errors.
+All analyzers and linters know about a list in a signature. But we cannot entirely rely on utilities: if the data changes constantly, it is difficult to understand where a bug and where "it's a feature" is.
+
+Clojure beginners often write code like this:
+
+\begin{clojure}
+(let [result (atom [])
+      data [1 2 3 4 5]]
+  (doseq [item data]
+    (let [new-item (* 2 item)]
+      (swap! result conj new-item)))
+  @result)
+\end{clojure}
+
+\index{imperative style}
+
+\noindent
+There is a noticeable habit of imperative languages in it. The atom accumulator is unnecessary: a \verb|map| or \verb|for| is enough:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(map (partial * 2)
+     [1 2 3 4 5])
+\end{clojure}
+
+\splitter
+
+\begin{clojure}
+(for [n [1 2 3 4 5]]
+  (* n 2))
+\end{clojure}
+
+\else
+
+
+\noindent
+\begin{tabular}{ @{}p{5cm} @{}p{5cm} }
+
+\begin{clojure}
+(map (partial * 2)
+     [1 2 3 4 5])
+\end{clojure}
+
+&
+
+\begin{clojure}
+(for [n [1 2 3 4 5]]
+  (* n 2))
+\end{clojure}
+
+\end{tabular}
+
+
+\fi
+
+Both expressions are shorter and more understandable. You don't need to create a vector and add elements to it~--- functions do this. If collection traversing uses atomicity, most likely, it's a weak solution.
+
+The Clojure authors have done everything to make state stand out from the general background.
+State is resorted to only when it is necessary.
+If you write code using atoms for no good reason, you will receive a comment, or they won't accept your work.
+
+\index{state}
+
+\subsection{In Defense of State}
+
+We said that state is fraught with potential errors. That is not entirely true because only small programs run without using state: for example, scripts that run once a day. It is impossible to write enterprise applications without state.
+
+\index{resources}
+
+Persistent data saves us from field rewriting errors. That is a significant gain, but beyond the data, the application relies on \emph{resources}.
+The rule applies: working with an open resource is cheaper than when you need to open and close it time and again.
+State speeds up a program.
+
+\index{web development}
+\index{protocols!CGI}
+
+Years ago, web servers used the \footurl{Common Gateway Interface}{https://en.wikipedia.org/wiki/Common\_Gateway\_Interface}[CGI] (CGI).
+For each request, the server ran a script or a binary file.
+The script received request data from environment variables. The program wrote the response to standard thread. The server intercepted it and displayed it to a user.
+
+The pattern was simple and convenient. The application might be a Perl script or a C\Plus\Plus program. A server was stateless. At any time, the developer updated the file and the changes took effect immediately.
+
+Low speed was the price to pay for those benefits. Each request to the server caused a new process.
+Even if the program was written in C, starting the process took time.
+The industry has concluded that the application should run continuously, not on a request.
+
+\index{protocols!FastCGI}
+
+The FastCGI application is designed as an independent server. Its performance is two orders of magnitude higher than that of CGI.
+The FastCGI application now has a state: an open port and a Request-Response loop.
+The loop reads the request and delegates to a separate thread.
+It has complicated development, leading to new paradigms and frameworks.
+
+Database connections are similar.
+Imagine that for each request, we open a connection, work with it, and then close it.
+In the machine world, opening a TCP connection is a long process.
+Therefore, connection pools appeared.
+
+\index{connection pool}
+
+A pool is an object that holds multiple open connections.
+It is aware of which one is busy or free.
+To access a database, we take one of the free pool connections and work with it, then return it.
+For the consumer, a pool is a primitive object that gives and takes connections.
+
+But the pool logic is pretty complicated.
+It increases its capacity if there are not enough connections; otherwise, it reduces. A pool counts operating time and other metrics for each connection. It also decides when to close the connection and replace it with a new one.
+The pool runs in a separate thread so as not to block the main program.
+
+The increased access speed compensates for the design complexity.
+Each request flows through a pre-opened connection, which is much faster than opening it every time.
+
+Machine architecture itself encourages data changing. At school, we are taught the memory of a computer as an array of cells.
+Writing to a cell at the address is cheap.
+In both C\Plus\Plus and Python, it is equally simple to update an array element:
+
+\begin{python}
+items[i] = 5;
+\end{python}
+
+Persistent structures fit this memory model worse.
+Therefore, they are more complex — an immutable list is not a chain but a tree of nodes with a pointer.
+Persistent collections are smart and do not copy data entirely but partially.
+Still, at large volumes, it is more profitable to work with mutable structures.
+
+We do not call for the introduction of state everywhere.
+Tree-like and slowing down is the price to pay for less risk of error.
+An engineer must know where adding state or getting rid of it leads.
+As the chapter progresses, we'll explore when and how to use Clojure's imperative features.
+
+\section{Atoms}
+
+\index{atom}
+
+Clojure offers several ways to modify data.
+An atom is the simplest of them all. It is an object that hides another one within itself.
+Atoms are created using the function of the same name with an initial value:
+
+\begin{clojure}
+(def store (atom 42))
+\end{clojure}
+
+If we print the atom, we see the following:
+
+\begin{clojure}
+#<Atom@10ed2e87: 42>
+\end{clojure}
+
+To extract a value, use the \verb|@| operator.
+The \verb|@| is a shorthand for \verb|(deref store)|.
+The \verb|deref| function takes an atom and returns the content.
+Semantically, this is the same as getting a value
+by pointer.
+
+\index{deref}
+\index{dereference}
+\index{syntax!@ (deref)}
+\index{clojure.core!deref}
+
+\begin{clojure}
+@store ;; 42
+\end{clojure}
+
+Unlike collections, this one changes its content but remains the same object.
+That is important: if you add a key to a map, we get a new map, while the old one will not change.
+If we change the content of the atom from our example, it will still be the same atom with the number \verb|10ed2e87|.
+
+\index{clojure.core!reset"!}
+
+The simplified way to change an atom is to call \verb|reset!|. The function gets the atom and a new value. It can be of any type, including nil, a collection, and an exception:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(reset! store nil)
+(reset! store {:items [1 2 3]})
+(reset! store (ex-info "error"
+                {:id 42}))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(reset! store nil)
+(reset! store {:items [1 2 3]})
+(reset! store (ex-info "error" {:id 42}))
+\end{clojure}
+\fi
+
+If we execute \verb|@store| after each expression, we get what was passed to \verb|reset!|.
+The last instance will not throw an exception because there is no \verb|throw| statement.
+
+\subsection{Atom Increment}
+
+\index{counters}
+\index{atom!increment}
+
+We said that the way with the \verb|reset!| function was simplified because it does not regard what value the atom currently contains. In practice, an atom is modified based on the content.
+If it's a counter, it doesn't matter what value is in it now. The atom receives an instruction to add 1.
+For a vector, the message looks like "add an element"; for a map — "remove a key", and so on.
+
+The atom value fades into the background; we are interested \emph{in action}.
+To update an atom with its state, a function is sent to it. It takes the current value and returns a new one that will replace the content.
+An atom and a function are passed to the \verb|swap!| function to calculate a new value:
+
+\index{clojure.core!swap"!}
+
+\begin{clojure}
+(def counter (atom 0))
+(swap! counter inc) ;; 1
+\end{clojure}
+
+\noindent
+The counter value will increment by one each time with the calling of \verb|swap!|.
+
+\verb|Swap!| takes additional parameters for calculation.
+Suppose we want to increase the counter by three positions at once or rewind. Instead of \verb|inc|, we will apply addition and subtraction, the functions \verb|+| and \verb|-|.
+Their first argument is the current value of atom and the second one is passed to \verb|swap!|:
+
+\begin{clojure}
+(swap! counter + 3) ;; increase by 3
+(swap! counter - 2) ;; decrease by 2
+\end{clojure}
+
+The atom will calculate a new value according to the rule:
+
+\begin{clojure}
+(+ <current> 3)
+(- <current> 2),
+\end{clojure}
+
+\noindent
+where <current> is the current value.
+
+The example above is a specific case of \verb|swap!| with one argument. In general, the function accepts an arbitrary number of these:
+
+\begin{clojure}
+(swap! <atom> func arg2 arg3 arg4 ...)
+\end{clojure}
+
+\noindent
+We find a new value using the following form:
+
+\begin{clojure}
+(func <current> arg2 arg3 arg4 ...)
+\end{clojure}
+
+Until now, we have stored counters in atoms.
+But in practice, one entity is rarely counted.
+More often, counters act in a context of something (e.g., page views by addresses, the number of user's messages, and so on).
+
+In order not to create one atom for each entity, the former are combined into a map.
+Let’s take a look at counting system resources.
+Map keys stand for a resource type, and values — for consumption in bytes or percent.
+
+\begin{clojure}
+(def usage
+  (atom {:cpu 35
+         :store 63466734
+         :memory 10442856}))
+\end{clojure}
+
+A separate function calculates disk consumption.
+To write a new value to an atom using the \verb|:store| key, call \verb|swap!| as follow:
+
+\begin{clojure}
+(defn get-disk-usage []
+  (rand-int 99999999))
+
+(let [store (get-disk-usage)]
+  (swap! usage assoc :store store))
+\end{clojure}
+
+This form will overwrite the value in the field of \verb|:store| with a new one. Another approach is also possible: we record the difference for each change and do not count all the occupied disk space.
+For instance, if a user has created or deleted a file, we read the event and update \verb|:store| incrementally.
+
+The \verb|get-file-event| function will somehow return a file system event.
+It is a map with the \verb|:action| and \verb|:size| keys.
+We increase or decrease disk consumption depending on \verb|:action|.
+Our version of \texttt{get-file\--event} is a stub that will randomly return one of two events:
+
+\begin{clojure}
+(defn get-file-event []
+  (rand-nth
+   [{:action :delete
+     :path "/path/to/deleted/file.txt"
+     :size 563467}
+    {:action :create
+     :path "/path/to/new/photo.jpg"
+     :size 7345626}]))
+\end{clojure}
+
+\noindent
+The recalculation of disk consumption will change:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(let [{:keys [action size]}
+      (get-file-event)]
+  (case action
+    :delete
+    (swap! usage update :store - size)
+    :create
+    (swap! usage update :store + size)))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(let [{:keys [action size]} (get-file-event)]
+  (case action
+    :delete
+    (swap! usage update :store - size)
+    :create
+    (swap! usage update :store + size)))
+\end{clojure}
+
+\fi
+
+\index{files}
+
+This way, resources are counted in cloud platforms.
+Accessing a disk is an expensive operation: you cannot go through a tree of folders and find the volume.
+Sometimes one client's files are located on different disks and servers. Therefore, we count resources iteratively and check the numbers every interval.
+
+\index{PID}
+\index{processes}
+
+Let's complicate the example with resources: now we'll count them in the context of users.
+The top-level keys represent a user number, and the values stand for resource maps.
+For each user, we keep a list of their processes, i.e., a set of \footurl{\texttt{PID}}{https://en.wikipedia.org/wiki/Process\_identifier}[PIDs][-9mm]
+\coderef{5}.
+
+\ifx\DEVICETYPE\MOBILE
+\begin{clojure/lines}
+(def usage-all
+  (atom {1005 {:cpu 35
+               :store 63466734
+               :memory 10442856
+               :pids #{6266 5426
+                       6542}}}))
+\end{clojure/lines}
+
+\else
+
+\begin{clojure/lines}
+(def usage-all
+  (atom {1005 {:cpu 35
+               :store 63466734
+               :memory 10442856
+               :pids #{6266, 5426, 6542}}}))
+\end{clojure/lines}
+\fi
+
+To add a process to user 1005, execute the \verb|swap!| function:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(swap! usage-all
+  update-in [1005 :pids] conj 9999)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(swap! usage-all update-in [1005 :pids] conj 9999)
+\end{clojure}
+
+\fi
+
+It's a tricky combination: we passed a function to \verb|swap!|, which function in turn takes another one. Let's figure out what happened step by step.
+
+\begin{itemize}
+
+\item
+  Get a lot of old \verb|<pids>| processes:\\
+  \verb|(get-in <current> [1005 :pids])|
+
+\item
+  Add a new process to it: \spverb|(conj <pids> 9999)|.\ifx\DEVICETYPE\MOBILE\ \else\\\fi.
+  Denote the new set \verb|<pids*>|
+
+\item
+  Update \verb|<current>| with this set along path 1005 \arr{} \verb|:pids|:\\
+  \ifx\DEVICETYPE\MOBILE
+  \verb|(assoc-in <current>| \\
+  \verb|  [1005 :pids] <pids*>)|
+  \else
+  \verb|(assoc-in <current> [1005 :pids] <pids*>)|.
+  \fi
+
+\end{itemize}
+
+\noindent
+Replace \verb|conj| with \verb|disj|, to remove a process. The latter is the inverse function that removes an item from the set.
+
+\index{clojure.core!get-in}
+\index{clojure.core!update-in}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(swap! usage-all
+  update-in [1005 :pids] disj 9999)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(swap! usage-all update-in [1005 :pids] disj 9999)
+\end{clojure}
+
+\fi
+
+The \verb|reset!| function resets the atom to its original state. In other cases, you need to know the current value to calculate a new one.
+Therefore \verb|swap!| is more powerful and flexible than \verb|reset!|.
+
+\subsection{Shared Access}
+
+\index{pure functions}
+\index{atom!restart}
+
+A function passed to \verb|swap!| must be free of side effects. In functional programming terms, it is \emph{a pure function}.
+It shouldn't access the database, files, and screen output.
+Technically it is possible, but you will run into the strange atom behavior.
+The point is that sometimes the function runs \emph{multiple} times in one \verb|swap!|.
+The reason lies in the way the atom updates the content.
+
+Assuming resources are counted in several threads: one of them listens for file system events, the other one monitors memory.
+There is a sharing access problem.
+A situation may arise when two threads update the same data.
+For example, the first thread ran faster and wrote its data version to an atom.
+Then the second thread calculated another version.
+If it changes the atom content, the first thread effect will be canceled.
+
+\index{terminal}
+
+The classic problem about the terminal and a couple illustrates this situation. Husband and his wife deposit cash into an empty joint account. The wife deposits $ 100. The terminal adds this amount to zero and writes it to the database. Then the husband deposits $ 50, and the terminal repeats its actions. As a result, there are fifty dollars on the account, and a hundred dollars is lost.
+
+An atom will not allow this.
+It remembers the initial value at the moment of calculating a new one.
+The atom checks that the current value matches the initial value before updating the content.
+If they are not equal, then the atom has been updated from another thread.
+
+In this case, the atom repeats the cycle. The current value becomes the initial value, and a new one is calculated from it. The atom compares the current and initial values again.
+The cycle is repeated until they are equal.
+This means that the atom was not updated during the computation.
+The atom changes the current value to a new one and exits the loop.
+
+We will show the above with an example.
+Let's take an atom with a map:
+
+\begin{clojure}
+(def sample (atom {:number 0}))
+\end{clojure}
+
+We'll need the "\emph{slow} addition" function.
+It takes the current value, increment, and timeout.
+Let's add the output to the console for clarity.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn +slow
+  [num delta timeout]
+  (println
+    (format "Current: %s, timeout: %s"
+      num timeout))
+  (Thread/sleep timeout)
+  (+ num delta))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn +slow
+  [num delta timeout]
+  (println (format "Current: %s, timeout: %s" num timeout))
+  (Thread/sleep timeout)
+  (+ num delta))
+\end{clojure}
+
+\fi
+
+\index{clojure.core!future}
+\index{futures}
+
+Let's update the atom simultaneously from two threads. To do this, we call \verb|swap!| in a future block. In the first case, we wait two seconds and five in the second case:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(do (future (swap! sample update
+              :number +slow 1 2000))
+    (future (swap! sample update
+              :number +slow 2 5000)))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(do (future (swap! sample update :number +slow 1 2000))
+    (future (swap! sample update :number +slow 2 5000)))
+\end{clojure}
+
+\fi
+
+\noindent
+Check the atom:
+
+\begin{clojure}
+@sample ;; {:number 3}
+\end{clojure}
+
+\noindent
+The following value is correct: $0 + 1 + 2 = 3$
+Console output:
+
+\begin{text}
+Current: 0, timeout: 2000 ;; 1
+Current: 0, timeout: 5000 ;; 2
+Current: 1, timeout: 5000 ;; 2
+\end{text}
+
+The second function worked twice, which follows from the algorithm.
+The second \verb|swap!| started calculation with the initial value \verb|{:number 0}|, and by the end, it became \verb|{:number 1}|, the first \verb|swap!| wrote it.
+The atom started the second \verb|swap!| once again regarding \verb|{:number 1}| to avoid the error.
+
+When an atom is changed from multiple threads, the restart might occur more than two times.
+That is unallowable for environment dependent functions.
+
+\subsection{Validators and Watchers}
+
+\index{atom!validation}
+\index{validation!in atom}
+
+Validators and watchers extend atom behavior.
+Validators are validation functions that take on a new value \emph{before} it replaces the current one.
+If the validator returns false, calling \verb|swap!| will result in an error.
+
+\index{clojure.core!set-validator"!}
+
+The \verb|set-validator!| function adds a validator to the atom.
+Let's say that our counter cannot be negative.
+Attempting to decrease its value when it is zero will throw an exception:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def counter (atom 2))
+(set-validator!
+  counter (complement neg?))
+;;repeat 3 times...
+(swap! counter dec)
+;; Execution error IllegalStateException
+;; Invalid reference state
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def counter (atom 2))
+(set-validator! counter (complement neg?))
+(swap! counter dec) ;; repeat 3 times...
+;; Execution error (IllegalStateException)
+;; Invalid reference state
+\end{clojure}
+
+\fi
+
+Watchers are side effects of an atom.
+The functions fire \emph{after} the atom swaps to a new state. The watcher is set with a unique key and a function.
+That takes four arguments: a key, an atom, old and new values.
+We can assign several watchers to one atom.
+
+Now we will discuss when watchers are useful.
+Remember resource counting: the system receives events and updates the atom.
+If the disk consumption has exceeded the limit, we shouldn't throw an exception.
+It doesn't make sense because the events come from an external system.
+An exception on our side will not stop the flow of events.
+
+\index{atom!watcher}
+
+It will be correct to set a \emph{reaction} to exceeding the limit: for example, notify the user with a letter that the resource has been exhausted or send a request to the subsystem that is responsible for access.
+For this, a watcher is useful: it links an atom change and a reaction to this.
+
+\index{logging!in atom}
+
+Let's log a message if the consumption has gone beyond the limit.
+Now declare the \verb|store-watcher| function.
+Note that we only need the last of the four parameters, namely \verb|value|.
+It is a new atom value.
+In production code, we would assign an underscore character to the first three parameters.
+It shadows unused variables and, so everything works faster.
+However, we have kept readable names in the example to convey semantics.
+
+\index{syntax!\textbf{\_} (shadowing)}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def STORE_LIMIT (* 1024 1024 1024 25))
+;; 25 Gb
+
+(defn store-watcher
+  [_key _atom _old value]
+  (let [{:keys [store]} value]
+    (when (> store STORE_LIMIT)
+      (log/errorf
+        "Disk usage %s has
+                   reached the limit %s"
+        store STORE_LIMIT))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def STORE_LIMIT (* 1024 1024 1024 25)) ;; 25 Gb
+
+(defn store-watcher
+  [_key _atom _old value]
+  (let [{:keys [store]} value]
+    (when (> store STORE_LIMIT)
+      (log/errorf "Disk usage %s has reached the limit %s"
+                  store STORE_LIMIT))))
+\end{clojure}
+
+\fi
+
+\mnoindent
+Let's add a watch function with the \verb|:watch-store| key to our atom:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def usage
+  (atom {:cpu 35
+         :store 63466734
+         :memory 10442856}))
+
+(add-watch usage
+  :watch-store store-watcher)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def usage
+  (atom {:cpu 35
+         :store 63466734
+         :memory 10442856}))
+
+(add-watch usage :watch-store store-watcher)
+\end{clojure}
+
+\fi
+
+\noindent
+If disk consumption exceeds the limit, we will see a log entry:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(swap! usage update :store + STORE_LIMIT)
+;; Disk usage 26907012334
+;; has reached the limit 26843545600
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(swap! usage update :store + STORE_LIMIT)
+;; Disk usage 26907012334 has reached the limit 26843545600
+\end{clojure}
+
+\fi
+
+We might consider validation and watchers as pre- and post-effects.
+The difference is that the former can interrupt the execution, while the latter cannot.
+They have different jobs: pre-effects check what \emph{might happen}, and post-effects what has \emph {already happened}.
+Therefore, they cause different reactions.
+
+\subsection{Other Examples}
+
+\index{memoization}
+\index{clojure.core!memoize}
+\index{decorators}
+
+Some Clojure features rely on atoms, such as \verb|memoize|.
+It is a decorator that returns an improved version of the function.
+It remembers the result relative to the arguments and writes it to an internal table.
+If we call the function with the same arguments, we'll get the result without recalculating, from the table.
+
+\begin{listing}[ht!]
+
+\begin{clojure}
+(defn memoize [f]
+  (let [mem (atom {})]
+    (fn [& args]
+      (if-let [e (find @mem args)]
+        (val e)
+        (let [ret (apply f args)]
+          (swap! mem assoc args ret)
+          ret)))))
+\end{clojure}
+
+\caption{The memoize function code from Clojure's standard library}
+\label{fig:clj-memoize}
+
+\end{listing}
+
+\index{clojure.core!find}
+
+The atom plays the role of this table.
+A \verb|memoized| function closes on an atom which is visible only to it.
+See the decorator code in Listing~\ref{fig:clj-memoize}.
+By the way, they use \verb|find| instead of \verb|get| to search a map. The difference between these functions is how they interpret nil. If the key value is \verb|nil|, \verb|get| will also return \verb|nil|, and the \verb|if-let| form will execute a false branch.
+The \verb|find| function will return a \verb|MapEntry| pair, the value from which is found using \verb|val|.
+
+Let's check the decorator on the \verb|+slow| function we defined above. We'll declare its \verb|memoized| version and measure the calls:
+
+\begin{clojure}
+(def +mem (memoize +slow))
+
+(time (+mem 1 2 2000))
+;; Elapsed time: 2004.699832 msecs
+
+(time (+mem 1 2 2000))
+;; Elapsed time: 0.078052 msecs
+\end{clojure}
+
+\index{classes!Thread}
+
+The first call takes a bigger because \verb|Thread/sleep| is running in the body of \verb|+slow|. The second call gets the result from the atom, which is orders of magnitude faster.
+
+\index{counters}
+
+Atoms are useful in web development — they are a cheap way to store state between requests.
+You can easily make view counters, sessions, and cache using atoms.
+The page view counter is a combination of an atom and middleware:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def page-counter
+  (atom {"/" 0}))
+
+(defn wrap-page-counter
+  [handler]
+  (fn [request]
+    (let [{:keys [uri request-method]}
+          request]
+      (when (= request-method :get)
+        (swap! page-counter
+          update uri (fnil inc 0)))
+      (handler request))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def page-counter
+  (atom {"/" 0}))
+
+(defn wrap-page-counter
+  [handler]
+  (fn [request]
+    (let [{:keys [uri
+                  request-method]} request]
+      (when (= request-method :get)
+        (swap! page-counter update uri (fnil inc 0)))
+      (handler request))))
+\end{clojure}
+
+\fi
+
+\index{HTTP!GET}
+
+For each GET request, we increment the counter for the current address.
+Notice the \verb|fnil| form in the call of \verb|update|. It returns a version of \verb|inc| that will not throw an exception if the first argument is \verb|nil|.
+That is possible if the required key does not yet exist in the map, and instead of \verb|nil|, the function will receive zero.
+
+\index{formats!HTML}
+\index{libraries!Hiccup}
+
+The \verb|page-seen| function will return the number of views for the page address.
+Let's write a site footer component, where the small print indicates how many times the page has been viewed. The \footurl{Hiccup}{https://github.com/weavejester/hiccup}[Hiccup][-10mm] library and its analogs will be perfect for HTML markup.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn component-footer [uri]
+  [:div {:class "footer"}
+   (let [seen (get @page-counter uri 0)]
+     [:p [:small
+          "The page has been seen " seen
+          " time(s)."]])])
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn component-footer [uri]
+  [:div {:class "footer"}
+   (let [seen (get @page-counter uri 0)]
+     [:p [:small "The page has been seen " seen " time(s)."]])])
+\end{clojure}
+
+\fi
+
+\subsection{Comments on Atoms}
+
+Atomic solutions have the following disadvantages.
+Atoms do not link with other instances of the program. When an application occupies several nodes, each one stores its counter itself.
+If requests are sent to them evenly, the client will see different data.
+To avoid oddities, network storages like Redis are used.
+
+\index{databases!Redis}
+
+Atoms are unstable: if you end the program, they lose their state.
+On the other hand, an atom is faster than a file system or network service.
+There are hybrid schemes in which an atom reads a resource at the start and saves changes to it once every interval.
+
+\section{Volatile}
+
+An atom is quite complex: it is responsible for concurrent access, calls validation, and it monitors changes. Sometimes atom's features turn out to be unnecessary, so its simplified version~--- the \verb|volatile| object~--- is used.
+
+\index{clojure.core!volatile}
+\index{clojure.core!vreset"!}
+
+It also stores and changes a value.
+The function of the same name creates an object with a state.
+The \verb|vreset!| and \verb|vswap!| functions are similar to those we have looked at for atoms.
+The \verb|v-| prefix means they work with \verb|volatile|.
+
+Below is an example with resources. This time, instead of an atom, we use a different type of storage:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def vusage (volatile! nil))
+(vreset! vusage
+         {:cpu 35
+          :store 63466734
+          :memory 10442856})
+(vswap! vusage
+  update :store + (* 1024 1024 5))
+(println
+  "Disk usage is" (get @vusage :store))
+;; Disk usage is 68709614
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def vusage (volatile! nil))
+(vreset! vusage
+         {:cpu 35
+          :store 63466734
+          :memory 10442856})
+(vswap! vusage update :store + (* 1024 1024 5))
+(println "Disk usage is" (get @vusage :store))
+;; Disk usage is 68709614
+\end{clojure}
+
+\fi
+
+\verb|Volatile| differs from an atom in that it does not control writes from multiple threads.
+Let's rewrite the example with futures:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def vsample (volatile! {:number 0}))
+(do (future (vswap! vsample update
+              :number +slow 1 2000))
+    (future (vswap! vsample update
+              :number +slow 2 5000)))
+;; Current: 0, timeout: 2000
+;; Current: 0, timeout: 5000
+@vsample ;; {:number 2}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def vsample (volatile! {:number 0}))
+(do (future (vswap! vsample update :number +slow 1 2000))
+    (future (vswap! vsample update :number +slow 2 5000)))
+;; Current: 0, timeout: 2000
+;; Current: 0, timeout: 5000
+@vsample ;; {:number 2}
+\end{clojure}
+
+\fi
+
+\index{clojure.core!future}
+\index{futures}
+
+The output shows that the second action worked once. If in the example with the atom the total was 3, then with \verb|volatile| we got 2.
+We lost the operation \verb|+1|.
+That proves \verb|volatile| is not suitable for multithreaded code.
+
+However, there are advantages to this.
+The \verb|volatile| object does not restrict access, so changes are faster.
+For the same reason, it does not support validators or watchers.
+Overall, \verb|volatile| is aimed at speed.
+
+\subsection{Applying}
+
+\verb|Volatile| has two uses: they are transducers and imperative code. Transducers are a particular way of working with a collection.
+They wrap the functions — \verb|map|, \verb|reduce|, and others — in such a way that their combination does not produce intermediate lists.
+This is possible due to the internal state.
+Write speed is significant for a transducer, so it is better to manage state with \verb|volatile| than with an atom.
+
+\verb|Volatile| is useful when writing imperative code. Take it easy: sometimes, business requirements are so complicated that functional style doesn't fit well with them.
+
+Let us say you want to get a flat list from a tree.
+The traversal algorithm is complex: if there is one value in the first branch, then consider the second, or else — the third.
+When a certain condition is true for the first and third branches, add the product of values to the list.
+
+\index{imperative style}
+
+These are entirely imperative requirements, and it is beneficial to set them in the same way. So we will make the code closer to business logic and make it easier to maintain. Take a look at a small part of the tree:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def data
+  {:items [{:result {:value 74}}
+           {:result {:value 65}}]
+   :records [{:usage 99
+              :date "2018-09-09"}
+             {:usage 52
+              :date "2018-11-05"}]})
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def data
+  {:items [{:result {:value 74}}
+           {:result {:value 65}}]
+   :records [{:usage 99 :date "2018-09-09"}
+             {:usage 52 :date "2018-11-05"}]})
+\end{clojure}
+
+\fi
+
+The code is broken into blocks, where each one is a \verb|when-let| cascade. We modify the collection at the bottom level.
+The imperative style is convenient in this case: if one of the rules becomes redundant, you delete the block. It is useful to put a comment or a link to the documentation above the block:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(let [result (volatile! [])]
+
+  ;; see section 5.4 from the doc
+  (when-let [a (some-> data
+                       :items
+                       first
+                       :result
+                       :value)]
+    (when-let [b (some-> data
+                       :records
+                       last
+                       :usage)]
+      (when (> a b)
+        (vswap! result conj (* a b)))))
+
+  ;; more blocks...
+  @result)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(let [result (volatile! [])]
+
+  ;; see section 5.4 from the doc
+  (when-let [a (some-> data :items first :result :value)]
+    (when-let [b (some-> data :records last :usage)]
+      (when (> a b)
+        (vswap! result conj (* a b)))))
+
+  ;; more blocks...
+  @result)
+\end{clojure}
+
+\fi
+
+\section{Transient Collections}
+
+\index{collections!transient}
+\index{clojure.core!transient}
+
+Using the atom, we have created a kind of mutable collections.
+Get acquainted with the new technique: Clojure offers \emph{truly} mutable collections~--- in another way, they are called \verb|transient|.
+
+Mutable collections are derived from persistent counterparts.
+Only a few functions work with them, adding and removing an item.
+Standard functions like \verb|map|, \verb|filter|, and others do not support \verb|transient| collections.
+Yes, we are losing the power of the standard library, but in return, we gain speed and an imperative approach.
+
+Transients are faster than persistent collections.
+It is easier to change the contents of a memory cell than to allocate a new one and shift part of the data.
+A collection mustn't be in \verb|transient| mode at all times.
+When the algorithm is finished, a collection is frozen and its unmodifiable version is returned.
+
+\subsection{Examples}
+
+We gain a transient collection from the original one using the \verb|transient| function.
+To work with the first, use the \verb|conj!|, \verb|assoc!|, and \verb|dissoc!| functions, etc.
+An exclamation point following names notifies of data changes.
+These functions change the collection \emph{contents} rather than returning a new copy, as the regular \verb|conj and \verb|assoc| do.
+
+\index{clojure.core!persistent"!}
+
+The \verb|persistent!| function ends the processing of the transient.
+It returns an immutable version and simultaneously "seals" the original: after calling \verb|persistent!|, the transient collection cannot be changed.
+
+Now we'll look at a transient vector.
+The \verb|conj!| function adds and the \verb|pop!| function removes the vector's last item:
+
+\begin{clojure}
+(let [items* (transient [1 2 3])]
+  (conj! items* :a)
+  (conj! items* :b)
+  (pop! items*)
+  (persistent! items*))
+;; [1 2 3 :a]
+\end{clojure}
+
+\index{clojure.core!assoc"!}
+\index{clojure.core!dissoc"!}
+
+\noindent
+Here is an example with a map and the \verb|assoc!| and \verb|dissoc!| functions:
+
+\begin{clojure}
+(let [params* (transient {:a 1})]
+  (assoc! params* :b 2)
+  (assoc! params* :c 3)
+  (dissoc! params* :b)
+  (persistent! params*))
+;; {:a 1, :c 3}
+\end{clojure}
+
+Note: In the examples above, we marked the variable with an asterisk.
+This character does not break the language syntax.
+Unlike other languages, a Clojure variable name can contain characters that we usually don't use, such as hyphen, apostrophe, question mark, etc.
+We can mark special variables with an apostrophe or an asterisk.
+Transient collections are rare; therefore, they are special ones.
+
+As I mentioned before, we cannot modify a transient after calling the \verb|persistent!| function.
+The following example will throw an exception:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(let [params* (transient {:a 1})]
+  (assoc! params* :b 2)
+  (persistent! params*)
+  (assoc! params* :c 3))
+;; IllegalAccessError:
+;; Transient used after persistent! call
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(let [params* (transient {:a 1})]
+  (assoc! params* :b 2)
+  (persistent! params*)
+  (assoc! params* :c 3))
+;; IllegalAccessError: Transient used after persistent! call
+\end{clojure}
+
+\fi
+
+The \verb|(persistent! <data*>)| form usually closes a block with a mutable variable.
+Transient collections help where an imperative approach is needed. Above, we worked with a tree and \verb|volatile| to collect data.
+Let's rewrite that code for a transient vector:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(let [result* (transient [])
+      push! (fn [item]
+              (conj! result* item))]
+
+  ;; see section 5.4 from the doc:
+  ;; http://...
+  (when-let [a (some-> data
+                       :items
+                       first
+                       :result
+                       :value)]
+    (when-let [b (some-> data
+                       :records
+                       last
+                       :usage)]
+      (when (> a b)
+        (push! (* a b)))))
+
+  ;; more blocks...
+  (persistent! result*))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(let [result* (transient [])
+      push! (fn [item]
+              (conj! result* item))]
+
+  ;; see section 5.4 from the doc: http://...
+  (when-let [a (some-> data :items first :result :value)]
+    (when-let [b (some-> data :records last :usage)]
+      (when (> a b)
+        (push! (* a b)))))
+
+  ;; more blocks...
+  (persistent! result*))
+\end{clojure}
+
+\fi
+
+\index{clojure.core!conj"!}
+
+\mnoindent
+To avoid writing \spverb|(conj! result* item)| every time, we introduce the local \verb|push!| function.
+It is closed on \verb|result*| and takes only a value.
+To add an element, calling \verb|(push! x)| is enough. That shortens the code and hides the way the data is accumulated.
+
+\subsection{Iteration with Change}
+
+\index{iteration}
+
+We said before that transient collections are faster than permanent ones. It's noticeable on long iterations using \verb|loop/recur|.
+Typically, one of the \verb|loop| variables is a result collection.
+In each \verb|recur|, we pass its copy changed by the \verb|conj| or \verb|assoc| functions.
+
+When there are many iterations, we can resort to a ploy: instead of a persistent collection, pass its transient version. So, the code will speed up from two to four times. The changes in the code are small, and you only need to do the following:
+
+\begin{itemize}
+
+\item
+  change the collection type to spverb|(transient <coll>)|;
+
+\item
+  instead of \verb|conj| or \verb|assoc|, call their counterparts \verb|conj!| and \verb|assoc!|;
+
+\item
+  finally, return the persistent collection using the \verb|persistent!| function.
+
+\end{itemize}
+
+For experimentation, let's declare the nums variable, which is a list of a million integers:
+
+\begin{clojure}
+(def nums (range 999999))
+\end{clojure}
+
+\index{clojure.core!loop}
+\index{iteration!loop}
+
+\noindent
+Let's build the second list with a regular loop:
+
+\begin{clojure}
+(loop [result []
+       [n & nums] nums]
+  (if n
+    (recur (conj result n) nums)
+    result))
+\end{clojure}
+
+\noindent
+Now we'll do the same with a mutable vector:
+
+\begin{clojure}
+(loop [result* (transient [])
+       [n & nums] nums]
+  (if n
+    (recur (conj! result* n) nums)
+    (persistent! result*)))
+\end{clojure}
+
+The variable name and some details have changed, but the number of lines remains the same.
+Edits do not go outside the \verb|loop|, which gives freedom of action.
+In the early stages, you should write your code without mutable collections.
+Then, if speed is critical, the loop might be improved so that the data changes.
+
+The \verb|time| macro takes a block of code and prints the time spent on its execution.
+If we wrap both examples in \verb|time|, we'll get the following results:
+
+\begin{text}
+;; 166.688721 msecs (persistent)
+;;  69.415038 msecs (transient)
+\end{text}
+
+The exact numbers depend on the equipment and environment, but there is always a difference of several times. Transient collections really are faster than permanent ones!
+
+\index{clojure.core!reduce}
+\index{fold}
+
+The speedup works for the \verb|reduce| function as well. In other languages, this function is called \verb|fold|. The main point of \verb|reduce| is an accumulator of the result.
+It might be any data type, including a number or a string for addition and concatenation. Most often, however, the accumulator is a list or a map.
+
+There are two ways to start folding.
+In the first one, the accumulator is the initial item of a collection. In the case of the list \verb|(1, 2, 3)| and addition, this is 1. In the second method, the accumulator is set separately, for example, as an empty vector, where data will be written.
+
+The idea is to turn the accumulator into a transient collection.
+At each step, \verb|reduce| changes it using the \verb|conj!| function and analogs.
+Let's compare the regular \verb|reduce| and its mutable version:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(reduce
+ (fn [result n]
+   (conj result n))
+ []
+ nums)
+\end{clojure}
+
+\splitter
+
+\begin{clojure}
+(persistent!
+ (reduce
+  (fn [result* n]
+    (conj! result* n))
+  (transient [])
+  nums))
+\end{clojure}
+
+\else
+
+\noindent
+\begin{tabular}{ @{}p{5cm} @{}p{5cm} }
+
+\linegap
+
+\begin{clojure}
+(reduce
+ (fn [result n]
+   (conj result n))
+ []
+ nums)
+\end{clojure}
+
+&
+
+\begin{clojure}
+(persistent!
+ (reduce
+  (fn [result* n]
+    (conj! result* n))
+  (transient [])
+  nums))
+\end{clojure}
+
+\end{tabular}
+
+
+\fi
+
+\mnoindent
+We had to wrap the second \verb|reduce| in \texttt{per\-sis\-tent!}. In the case of \verb|loop|, we put \verb|persistent!| inside and isolated the changes. In this regard, \verb|reduce| is less flexible: inside the anonymous function, we do not know whether we have reached the iteration end or not. Without \verb|persistent!|, the second example will return a transient collection, which is invalid.
+
+\subsection{Semantics and Limitations}
+
+Mutable data is an advanced technique that requires attention.
+Once you have given up on permanent collections, you are in control of the changes.
+
+The increase in speed is not reason enough to apply them at every step.
+Writing code where functions exchange such collections is the worst thing a developer can do.
+Think about why the language author put so much emphasis on immutability.
+It would be a mistake to ignore his ideas.
+
+\index{people!Donald Knuth}
+
+The phenomenon of trying to accelerate at too early a stage is called premature optimization.
+As Donald Knuth pointed out, this is the root of all evil.
+While optimizing, ask yourself the following questions. Is it really important to speed up this cycle? Re you acting out of curiosity, or will this help the project?
+
+Isolate transient collections in small functions.
+In this case, the transition from constant types to mutable types will not affect the result.
+Refactoring should only concern the function, not its consumers.
+
+A mutable collection must not be global.
+Refrain from definitions such as \spverb|(def users* (transient []))| and the like.
+Otherwise, you end up with \verb|users*| becoming a clipboard between functions.
+Functions' results will become unpredictable.
+
+Unlike an atom, transient types do not support cross-thread access.
+Make sure only a single thread mutates the collection, and don't pass it into futures.
+
+\section{Variables and Alter-var-root}
+
+\index{variables}
+\index{clojure.core!alter-var-root}
+
+\label{alter-var-root}
+
+Atoms and transient collections change the object, not the variable.
+Sometimes we want something different.
+Let \verb|size| be an atom:
+
+\begin{clojure}
+(def size (atom 0))
+\end{clojure}
+
+To mutate it, call \verb|reset!| or \verb|swap!|, as in the examples above.
+But even with the changed content, \verb|size| remains an atom. The same thing happens with transient collections: it is easy to add and remove an item, but it will be the same collection.
+You cannot assign \verb|nil| to it.
+
+Sometimes a variable needs to change: first, it was \verb|nil|, then it turned into a map, then back into \verb|nil|.
+The authors deliberately complicated this scenario.
+It is possible to change variables, but this is not desirable from a language point of view.
+
+Clojure discourages the imperative style of changing a variable many times.
+Using a global variable for no good reason is a sign of poorly written code.
+A programmer must understand why such a variable is needed and whether it is possible to get rid of it.
+
+\index{monkey patch}
+
+Nevertheless, there are situations when global variables are useful.
+I mean \emph{components} and \emph{monkey patch}. What do they mean here?
+
+A Clojure project consists of separate components, that is, domains: they are a web server, database, and message queue.
+Each domain is placed in its module: \verb|http.clj|, \verb|db.clj|, and so on. In each module, a variable that stores the component state is declared (e.g., \verb|server| in the server module and \verb|conn| in the database module).
+Which way to define a variable is better?
+Beginners make the impulsive choice:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def server
+  (jetty/run-jetty app {:port 8080}))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def server (jetty/run-jetty app {:port 8080}))
+\end{clojure}
+
+\fi
+
+The expression will start the server when the module is loaded. This is bad practice because there should be no side effects in loading.
+The code does unsolicited things, so it is impossible to work with it in REPL.
+
+A server, databases, and other components must start on-demand, so their variables are initially \verb|nil|.
+The \verb|start!| function starts a server and writes it to the \verb|server| variable, and the \verb|stop!| function stops the server and sets the variable to \verb|nil|.
+
+\subsection{Concept of a Variable}
+
+\index{variables}
+\index{clojure.core!alter-var-root}
+
+\label{var-section}
+
+To change a \emph{variable}, resort to the \verb|alter-var-root| function.
+It changes the objects that \verb|def| and \verb|defn| specified.
+The call is like \verb|swap!| for an atom: alter-var-root takes a \verb|Var| object and applies a function to it to compute a new value from the old one.
+
+\index{classes!Var}
+
+Let's see what \verb|Var| is.
+It is an instance of the \verb|clojure.lang.Var| class from the Clojure library.
+\verb|Var| describes a variable in a namespace.
+To get a variable object, pass its symbol to the \verb|var| macro, for example \verb|(var server)|.
+The \verb|#'server| is a shorthand for \verb|(var server)|.
+
+\index{syntax!\texttt{\#\textquotesingle} (variable)}
+
+\index{symbol}
+
+The \emph{symbol} and \emph{object} of a variable are different entities.
+By itself, the symbol does not mean anything: it is equal only to itself. Imagine that a symbol is a word in a language, a combination of letters. There are no identical words in a language, but a word can have several meanings.
+
+\index{namespaces}
+
+A symbol is an intermediary between namespace and variables.
+When we write \verb|(def num 42)|, this does not mean that the \verb|num| variable is equal to 42.
+In effect, we created a \verb|Var| object with a value of 42.
+Then we put it in the current namespace under the \verb|num| symbol.
+
+The namespace works like a map: keys are symbols, and the values are variables.
+The \verb|def| and \verb|defn| forms fill this map.
+You could say \verb|def| gives meaning to a word, and Clojure understands that word at compile time.
+
+A \emph{computation} operation binds with a symbol.
+If you enter \verb|num| in REPL, it will search the namespace with that key. After finding the key, REPL returns the variable value; in our case, it is 42.
+Otherwise, an error will occur.
+
+Clojure deliberately hides the variable stage from us, and rightly so.
+If the expression \verb|num| returned a variable, it wouldn't make sense.
+\verb|Var| is not a number but a complex object.
+The value 42 is just one of its many fields.
+As a rule, variables are hidden from the user.
+A developer sees either their symbol (\verb|num|) or their value (\verb|42|).
+The \verb|alter-var-root| function is where variables come into play.
+
+\subsection{Start on Demand}
+
+We're to going to go back to a server.
+Let's declare a variable that eventually will become the \texttt{jetty.server\-.Server} object.
+By default, it is equal to \verb|nil|:
+
+\begin{clojure}
+(def server nil)
+\end{clojure}
+
+The \verb|start!| function replaces \verb|server| with the result of an anonymous function, which takes the current value of the variable.
+When it is \verb|nil|, we'll create, and return a new server. If not, the current one will be returned.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn start! []
+  (alter-var-root
+   (var server)
+   (fn [server]
+     (if-not server
+       (run-jetty app {:port 8080
+                       :join? false})
+       server))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn start! []
+  (alter-var-root
+   (var server)
+   (fn [server]
+     (if-not server
+       (run-jetty app {:port 8080 :join? false})
+       server))))
+\end{clojure}
+
+\fi
+
+\noindent
+\verb|Stop!| works similarly: if the server is on (i.e., not \verb|nil|), stop it, and return \verb|nil|.
+
+\begin{clojure}
+(defn stop! []
+  (alter-var-root
+   (var server)
+   (fn [server]
+     (when server
+       (.stop server))
+     nil)))
+\end{clojure}
+
+\mnoindent
+Calling \verb|(start!)| will start the server in the background. A browser will respond to requests at \texttt{localhost\-:8080}.
+The \verb|server| variable will print the server object to REPL.
+
+\index{connection pool}
+\index{libraries!JDBC}
+
+They work with the database in a similar way.
+In order not to open a connection for every request, we use connection pools.
+In the module, declare the \verb|pool| variable, which is \verb|nil|.
+The \verb|start!| function creates a new pool and updates the variable. After the start, requests are sent to the database. The \verb|query|, \verb|insert!| functions, and others from the JDBC package will take a database connection or pool:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(jdbc/query pool "select * from users")
+(jdbc/insert! pool
+  :users {:name "Ivan"})
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(jdbc/query pool "select * from users")
+(jdbc/insert! pool :users {:name "Ivan"})
+\end{clojure}
+
+\fi
+
+The \verb|stop!| function shuts down the pool, closes connections, and sets \verb|pool| to \verb|nil|.
+We will skip the code of these functions because they are similar to examples for an HTTP server.
+There are only differences in the global variable name and the expression where we create the server and pool.
+
+\subsection{Systems in Brief}
+
+\index{systems}
+
+\label{systems-intro}
+
+The \verb|alter-var-root| technique alters the module state to on or off. With this approach, it is convenient to enable a project in parts rather than all at once. For example, you don't need a web server to debug a database, and caching doesn't depend on mailing.
+
+Stateful modules are called components.
+All components together form a system.
+Use \verb|alter-var-root| to build small projects systems, usually web applications with a server and database. These are sometimes jokingly referred to as poor man's systems.
+
+\index{systems!poor}
+
+"Poor" systems do not depend on third-party libraries.
+Each module uses "controls" — the \verb|start!| and \verb|stop!| functions — that call \verb|alter-var-root|.
+This is a simple, convenient scheme.
+
+On the other hand, such systems are not aware of how one component depends on another.
+Dependencies become a problem over time, so large systems are built using libraries.
+Some of them also rely on \verb|alter-var-root|.
+A separate chapter of this book is devoted to systems \page{chapter-systems}.
+
+\subsection{Patching}
+
+\index{clojure.core!alter-var-root}
+\index{patching}
+
+Above, we have changed the variable in the current module.
+The power of \verb|alter-var-root| is that the function works on variables in \emph{any} namespace. By "any" I mean:
+
+\begin{itemize}
+
+\item
+  current module;
+
+\item
+  neighboring project modules;
+
+\item
+  third-party libraries;
+
+\item
+  standard Clojure modules such as \texttt{clo\-ju\-re.co\-re}.
+
+\end{itemize}
+
+\index{monkey patch}
+
+This is a powerful but rarely used technique.
+Modifying code on the fly is considered a questionable practice.
+It's also called \footurl{monkey patch}{https://en.wikipedia.org/wiki/Monkey\_patch}[Monkey patch][-7mm]. This expression means changing classes and functions, not in the code, but when the program is already running.
+
+If patching is overused, the program behaves in a non-obvious way.
+Colleagues will not immediately understand why the code says one thing and does another.
+This makes support annoying and difficult to maintain. Patching is resorted to if several of the following conditions are met:
+
+\begin{itemize}
+
+\item
+  you cannot move on without modifying;
+
+\item
+  there is a problem in a third-party library or platform;
+
+\item
+  it will take time to fix the problem.
+
+\end{itemize}
+
+If you find a bug in someone else's library, patching is justified.
+Even if the changes are accepted immediately, the release of the new version will take time.
+If the bug is delaying the release, replace the problematic function using \verb|alter-var-root|.
+
+Suppose some Yamler library parses YAML files.
+The \verb|read-yaml-tag| function is responsible for tags.
+We need to arrange tags in the file, but there was an error in parsing them.
+If the error is easy to fix, we'll write a function with an asterisk and replace the original with it:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn read-yaml-tag*
+  "The fixed version of
+  `yamler.tags/read-yaml-tag`."
+  [stream tag]
+  ...)
+
+(alter-var-root
+ (var yamler.tags/read-yaml-tag)
+ (constantly read-yaml-tag*))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn read-yaml-tag*
+  "The fixed version of `yamler.tags/read-yaml-tag`."
+  [stream tag]
+  ...)
+
+(alter-var-root
+ (var yamler.tags/read-yaml-tag)
+ (constantly read-yaml-tag*))
+\end{clojure}
+
+\fi
+
+Add a link to the artifact (GitHub, Jira) in the comment.
+Create a task to remove the patch when a new version of the library is released.
+
+Patching is useful in development.
+Developers often print data to screen to explore.
+The \verb|println| disadvantage is that the output is not structured.
+Collections are hard to read because they stick together on one line.
+
+\index{printing!indented}
+\index{modules!clojure.pprint}
+
+The package \verb|clojure.pprint| (short for \textbf{p}retty \textbf{p}rinting) solves this problem. The \verb|pprint| function outputs data indented and line-wrapped, which is convenient for nested maps.
+But it takes a long time to write \verb|(clojure.pprint/pprint data)| instead of \verb|(println data)| every time. To shorten the code, replace \verb|println| with \verb|pprint|.
+To do this, patch the function:
+
+\begin{clojure}
+(alter-var-root
+ (var println)
+ (constantly clojure.pprint/pprint))
+\end{clojure}
+
+Apply this patch once, anywhere in the project.
+Now, calling \verb|(println data)| will print the data, just like \verb|pprint| does:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(println <vector-of-dicts-of-vectors>)
+
+[{:foo 42
+  :bar [1 2 3 4 5 {:foo 42
+                   :bar [1 2 {#, #}]}]}
+ {:foo 42
+  :bar [1 2 {:foo 42
+             :bar [1 2 {#, #}]}]}]
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(println <vector-of-dicts-of-vectors>)
+
+[{:foo 42, :bar [1 2 3 4 5 {:foo 42, :bar [1 2 {#, #}]}]}
+ {:foo 42, :bar [1 2 {:foo 42, :bar [1 2 {#, #}]}]}]
+\end{clojure}
+
+\fi
+
+The function will replace the nested sections with the \verb|#| symbol so that a data avalanche does not fall on you.
+Specific variables set the print depth and length.
+We will see later how to control them.
+
+\subsection{In Production Mode}
+
+\label{install-logger}
+
+\index{logging!exceptions}
+\index{exceptions!logging}
+\index{logging!backends}
+
+Let's discuss when \verb|alter-var-root| is useful in production.
+In the previous chapter, we outlined a problem: we have no control over what an exception looks like in the log \page{log-ex-param}.
+Translating an exception into text is up to the backend (e.g., log4j, Logback, and others).
+
+We wrote an \verb|ex-print| function that prints the exception as we want.
+The function traverses a chain rather than filling across the entire screen with a stack trace.
+For each link, it outputs the class, message, and context:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn ex-print
+  [^Throwable e]
+  (let [indent "  "]
+    (doseq [e (ex-chain e)]
+      (println (-> e
+                   class
+                   .getCanonicalName))
+      (print indent)
+      (println (ex-message e))
+      (when-let [data (ex-data e)]
+        (print indent)
+        (clojure.pprint/pprint data)))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn ex-print
+  [^Throwable e]
+  (let [indent "  "]
+    (doseq [e (ex-chain e)]
+      (println (-> e class .getCanonicalName))
+      (print indent)
+      (println (ex-message e))
+      (when-let [data (ex-data e)]
+        (print indent)
+        (clojure.pprint/pprint data)))))
+\end{clojure}
+
+\fi
+
+\noindent
+The disadvantage is that instead of \verb|(log/error e)| you have to write:
+
+\begin{clojure}
+(log/error (with-out-str (ex-print e)))
+\end{clojure}
+
+This takes a long time and forces you to import \texttt{ex-\-print} into every module where exceptions are logged.
+It will be more convenient if only \verb|(log/error e)| remains, and \verb|ex-print| will fire somewhere behind the scenes.
+\texttt{Alter-var\--root} provides this capability.
+
+It should be noted that \verb|log/error|, \verb|log/info|, and analogs are not functions but macros.
+A macro is a fleeting entity that you cannot reference through \verb|var|.
+The macro lives \emph{until} the program is compiled. Later, the code it produced takes its place. You cannot change a macro, but you can replace the functions that it calls.
+
+\index{logging}
+
+The \verb|log/error| macro and others boil down to the \verb|log/log*| function.
+It is the bottleneck through which all logs go.
+Its signature looks like the following:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn log*
+  [logger level throwable message])
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn log* [logger level throwable message])
+\end{clojure}
+
+\fi
+
+The \verb|throwable| parameter is either an exception or \verb|nil|.
+Use the anonymous function with the following logic as a substitute for \verb|log*|:
+
+\begin{itemize}
+
+\item
+
+..If \verb|throwable| is not \verb|nil|, translate the exception into text
+
+\item
+  Add it to the original message via line break
+
+\item
+  Call the initial \verb|log*| (with a new message and \verb|nil|) for \verb|throwable|.
+The exclusion is no longer needed because it is part of the message now
+
+\item
+  If \verb|throwable| is \verb|nil|, call \verb|log*| with initial arguments.
+
+\end{itemize}
+
+\noindent
+Implementation:
+
+\index{functions!install-better-logging}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure/lines}
+(defn install-better-logging []
+  (alter-var-root
+   (var clojure.tools.logging/log*)
+   (fn [log*] ;; origin function
+     (fn [logger level
+          throwable message]
+       (if throwable
+         (let [ex-out (with-out-str
+                        (ex-print
+                          throwable))
+               message* (str message
+                          \newline
+                          ex-out)]
+           (log* logger
+             level nil message*))
+           (log* logger level
+             throwable message))))))
+\end{clojure/lines}
+
+\else
+
+\begin{clojure/lines}
+(defn install-better-logging []
+  (alter-var-root
+   (var clojure.tools.logging/log*)
+   (fn [log*] ;; origin function
+     (fn [logger level throwable message]
+       (if throwable
+         (let [ex-out (with-out-str (ex-print throwable))
+               message* (str message \newline ex-out)]
+           (log* logger level nil message*))
+         (log* logger level throwable message))))))
+\end{clojure/lines}
+
+\fi
+
+\mnoindent
+The trick lies in the \verb|log*| parameter \coderef{4}. The anonymous function in \verb|alter-var-root| takes the current value of the variable. It is the initial \verb|clojure.tools.logging/log*|, and the \verb|log*| parameter refers to it.
+The new function is closed on the initial one and can call it.
+
+The result is a decorator: we only change the input parameters and pass it on. After calling \verb|(install-better-logging)|, the exception output will change.
+For the error to take the required form, it is enough to write \verb|(log/error e)|.
+
+The advantage is that we control \emph{everything} at the Clojure level.
+If you need to improve the logs, we can modify \verb|ex-print| at any time.
+That is more convenient than inheriting the conditional \verb|com.logging.ErrorRenderer| and redefining its methods.
+
+The harm from thoughtless usage of \verb|alter-var-root| negates the pros that we have considered.
+The function is needed to change variables individually in specific cases.
+Only resort to patching if there are no other options left.
+
+\section{Assignment with the set! Form}
+
+\index{printing!indented}
+\index{modules!clojure.pprint}
+
+Let's go back to the \verb|pprint| function for pretty print. It is interesting because it checks the collections' length and level.
+This way, we will not allow a situation where the print fills several screens.
+Some collections are not just large but \emph{endless}, so checking for length is especially important.
+
+\index{collections! endless }
+\index{clojure.core!*print-length*}
+\index{clojure.core!set"!}
+
+The global variables \verb|*print-length*| and \verb|*print-level*| set the length and nesting of the output.
+By default, \verb|*print-length*| is 100.
+It is quite a lot, especially considering that other collections can act as elements.
+The result of a request to the database is a list of maps. Printing a hundred maps is wasteful, so let's reduce the \verb|*print-length*| at the start of the application. The \verb|set!| form serves this purpose:
+
+\begin{clojure}
+(set! *print-length* 8)
+\end{clojure}
+
+The endless collection output will only show the first eight items. The ellipsis means that we've cut off the rest of the list.
+
+\begin{clojure}
+(println (repeat 1))
+;; (1 1 1 1 1 1 1 1 ...)
+\end{clojure}
+
+The nesting or collection level is an imaginary index.
+When one collection becomes an element of another, its index is incremented by one.
+Let's declare a nested structure:
+
+\begin{clojure}
+(def data {:foo
+            {:bar
+              {:baz [42]}}})
+\end{clojure}
+
+Here is output with different \texttt{*print\--le\-vel*} values:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(set! *print-level* 4)
+(println data)
+;; {:foo {:bar #}}
+\end{clojure}
+
+\splitter
+
+\begin{clojure}
+(set! *print-level* 2)
+(println data)
+;; {:foo #}
+\end{clojure}
+
+\else
+
+\noindent
+\begin{tabular}{ @{}p{5cm} @{}p{5cm} }
+
+
+\begin{clojure}
+(set! *print-level* 4)
+(println data)
+;; {:foo {:bar #}}
+\end{clojure}
+
+&
+
+\begin{clojure}
+(set! *print-level* 2)
+(println data)
+;; {:foo #}
+\end{clojure}
+
+\end{tabular}
+
+
+\fi
+
+\noindent
+At zero level, we will see only \verb|#|.
+
+There are about ten variables with earmuffs (a pair of asterisks before and after variable names) in Clojure. Alternatively, they are called systemic ones because they affect the behavior of the language as a whole. We have already discussed two of them using for printing: these are \verb|*print-length*| and ~\verb|*print-level*|.
+Here is the list of a few others:
+
+\index{syntax!\texttt{*}earmuffs\texttt{*}}
+
+\begin{itemize}
+
+\index{reflection}
+\index{clojure.core!*warn-on-reflection*}
+
+\item
+  \verb|*warn-on-reflection*|: if true, the compiler warns about the places where it turned to reflection. Placing tags with types solves the problem
+
+\index{clojure.core!assert}
+\index{clojure.core!*assert*}
+
+\item
+  \verb|*assert*|: if false, disables the \verb|assert| macro. The \verb|assert| form tests the expression for true. When false, the macro throws an exception. By default, the \verb|assert| forms are enabled; they are used in development and testing. In production mode, they are turned off so as not to waste resources
+
+\label{print-meta}
+
+\index{metadata}
+\index{printing!metadata}
+\index{clojure.core!*print-meta*}
+\index{libraries!Component}
+
+\item
+  \verb|*print-meta*| determines whether or not to print the object metadata when printing.
+By default, it is false. Sometimes metadata stores fields that affect how the program works.
+For example, the Component library manages component dependencies through metadata.
+To see them, set \verb|*print-meta*| to true.
+
+\end{itemize}
+
+The \verb|set!| form modifies these variables and others.
+Let's look at some examples.
+If the compiler didn't output a type, show warnings:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(set! *warn-on-reflection* true)
+(def ms (System/currentTimeMillis))
+
+(.toString ms) ;; reflection warning
+(.toString ^Long ms) ;; no warning
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(set! *warn-on-reflection* true)
+(def ms (System/currentTimeMillis))
+
+(.toString ms)       ;; reflection warning
+(.toString ^Long ms) ;; no warning
+\end{clojure}
+
+\fi
+
+\noindent
+Disable \verb|assert| forms.
+False expressions will not throw an error:
+
+\begin{clojure}
+(set! *assert* false)
+(assert (get {:foo 3} :bar))
+;; won't throw an exception
+\end{clojure}
+
+\noindent
+Output an object with metadata (see the snippet in Listing \ref{fig:print-var-meta}).
+Please note that the variable stores the file path and the line number. Plugins use this information to navigate code.
+
+\begin{listing}[ht!]
+
+\begin{clojure}
+(set! *print-meta* true)
+(var +)
+
+^{:added "1.2"
+  :name +
+  :file "clojure/core.clj"
+  :column 1
+  :line 984
+  :arglists ([] [x] [x y] [x y & more])
+  :doc "Returns the sum of nums..."}
+#'clojure.core/+
+\end{clojure}
+
+\caption{Printing a variable with metadata to REPL}
+\label{fig:print-var-meta}
+
+\end{listing}
+
+\index{utilities!lein}
+\index{profiles!lein}
+
+Project management utilities read vars with earmuffs from a map.
+The \verb|lein| configuration considers the \verb|:global-vars| key.
+You can achieve even more flexibility by specifying variables in profiles.
+Below we'll set different variables depending on the development (\verb|dev|) or build (\verb|uberjar|) mode.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+{:profiles
+ :dev {:global-vars
+       {*warn-on-reflection* true
+        *assert* true}}
+ :uberjar {:global-vars
+           {*warn-on-reflection* false
+            *assert* false}}}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+{:profiles
+ :dev {:global-vars {*warn-on-reflection* true
+                     *assert* true}}
+ :uberjar {:global-vars {*warn-on-reflection* false
+                         *assert* false}}}
+\end{clojure}
+
+\fi
+
+Inside \verb|binding|, the \verb|set!| form acts as an assignment operator.
+The variable should be dynamic:
+
+\begin{clojure}
+(def ^:dynamic *rate*)
+(def ^:dynamic *days*)
+
+(binding [*rate* 0
+          *days* 0]
+  (when-let [rate (calc-date)] ;; 3
+    (set! *rate* rate))
+  (when-let [days (calc-days)] ;; 4
+    (set! *days* days))
+  (* *rate* *days*))
+;; 12
+\end{clojure}
+
+\noindent
+Outside \verb|binding|, the \verb|set!| call will fail, even for the variable with earmuffs:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def ^:dynaimc *data* nil)
+
+(set! *data* {:user 1})
+;; Unhandled IllegalStateException
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def ^:dynaimc *data* nil)
+
+(set! *data* {:user 1})
+;; Unhandled java.lang.IllegalStateException
+;; Can't change/establish root binding of: *data* with set
+\end{clojure}
+
+\fi
+
+\section{Changes in the Context}
+
+\index{context}
+\index{changes!in context}
+
+The techniques that we have considered are similar in the following: their effect lasts until the end of the program.
+Changes to atoms, transient collections, and globals vars are called persistent.
+
+Sometimes the changes need to be temporary: the global variable is $x$, but the piece of code is expecting $y$.
+You can make transient changes based on permanent ones: surround the code with a call of \verb|alter-var-root| with the new and old values.
+This approach has two problems: isolation and rollback.
+
+\index{clojure.core!alter-var-root}
+
+Transient changes take place in one thread.
+But \verb|alter-var-root| has the opposite effect~--- the function changes the variable for all threads.
+If a code snippet calls \verb|alter-var-root|, then all participants are affected.
+This leads to strange program behavior.
+
+The problem with rollback is that the variable must return to its previous state when exiting the block.
+When we are wrapping the code in the \verb|alter-var-root| or \verb|set!| forms, one of them may get lost or fail to gain control due to an error.
+
+Clojure offers several forms to execute code in the context of vars with different values.
+One of them is \verb|binding|.
+
+\index{binding}
+\index{clojure.core!binding}
+
+The \verb|binding| syntax is similar to \verb|let|: a form of binding and arbitrary code. A binding is a vector where the variable symbols and new values are specified.
+The symbols refer to already declared variables.
+The code block executes with new values for the variables.
+The result of \verb|binding| is the last expression in the block.
+\verb|Binding| modifications occur within the current flow and do not affect neighboring ones.
+On exit, the variables will get their old values.
+
+\subsection{Dynamic Variables}
+
+\label{dynamic-vars}
+
+\index{variables!dynamic}
+\index{syntax!\texttt{\^} (metadata)}
+
+\verb|Binding| only works with dynamic vars.
+The compiler treats a variable as such if a \verb|^:dynamic| tag has been assigned to it.
+It is a shortcut for \verb|^{:dynamic true}|:
+
+\begin{clojure}
+(def ^:dynamic *server* nil)
+;; or
+(def ^{:dynamic true} *server* nil)
+\end{clojure}
+
+A map with a caret symbol in \verb|def| is called metadata.
+These are additional parameters for a future variable.
+In this case, we inform the compiler that the variable is dynamic and can be changed in the future.
+
+Global variables are marked with earmuffs, i.e., asterisks at the edges.
+That is the so-called earmuffs syntax.
+The rule originated in older Lisp dialects, and Clojure follows the tradition.
+Global variables don't quite fit into the Clojure concept, so they stand out from the crowd.
+
+\index{languages!Lisp}
+
+Earmuffs and dynamism are linked.
+If the variable with earmuffs is not dynamic, the compiler will report a discrepancy.
+By themselves, a pair of asterisks does not make a variable dynamic; it is just a convention.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def *server* nil)
+;; Warning: *server* not declared dynamic
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def *server* nil)
+;; Warning: *server* not declared dynamic and thus [...]
+;; Please either indicate ^:dynamic *server* or change the name.
+\end{clojure}
+
+\fi
+
+\noindent
+If the variable is not dynamic, \verb|binding| will throw an exception:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(binding [*server* {:port 8080}]
+  (println *server*))
+;; IllegalStateException
+;; Can't dynamically bind
+;; non-dynamic var: *server*
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(binding [*server* {:port 8080}]
+  (println *server*))
+;; Execution error (IllegalStateException)
+;; Can't dynamically bind non-dynamic var: *server*
+\end{clojure}
+
+\fi
+
+\subsection{Rejection of the set! Form}
+
+Let us recall the parameters of the print length and depth. To protect ourselves from big data, we wrote something like this:
+
+\begin{clojure}
+(set! *print-level* 4)
+(println data)
+\end{clojure}
+
+\index{printing!indented}
+
+That is a bad example: it misses the point of isolation and rollback principles we've covered.
+The \verb|*print-level*| change is not isolated and affects the system globally.
+If another thread prints something, we will see the result with level 4, which may not suit our requirements.
+After \verb|(println data)|, you should restore the previous value of \verb|*print-level*|, but it's easy to forget about it.
+
+The code below is free of these flaws.
+Outside \verb|binding|, the variables will get their previous values, and the neighboring threads will not notice anything.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(binding [*print-level* 8
+          *print-length* 4]
+  (println
+    {:foo {:bar {:baz (repeat 1)}}}))
+;; {:foo {:bar {:baz (1 1 1 1 ...)}}}
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(binding [*print-level* 8
+          *print-length* 4]
+  (println {:foo {:bar {:baz (repeat 1)}}}))
+;; {:foo {:bar {:baz (1 1 1 1 ...)}}}
+\end{clojure}
+
+\fi
+
+\index{clojure.core!*out*}
+\index{classes!Writer}
+
+To let the console output go to a file, bind the variable \verb|*out*| to the
+\verb|Writer| object:
+
+%% Чтобы направить печать в файл, свяжите переменную \verb|*out*| с~объектом
+%% \verb|Writer|:
+%% TODO
+
+\begin{clojure}
+(require '[clojure.java.io :as io])
+
+(with-open [out (io/writer "dump.edn")]
+  (binding [*out* out]
+    (clojure.pprint/pprint {:test 42})))
+\end{clojure}
+
+Let's combine these examples into a function to dump data to a file.
+This one is useful for debugging big data.
+It takes a file path and collection.
+The function connects the output to the open file and prints the data.
+To see all the elements, increase the print length and depth.
+
+\begin{clojure}
+(defn dump-data
+  [path data]
+  (with-open [out (io/writer path)]
+    (binding [*out* out
+              *print-level* 32
+              *print-length* 512]
+      (clojure.pprint/pprint data))))
+\end{clojure}
+
+\noindent
+Dumping data to file:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(dump-data "sample.edn"
+  {:foo [1 2 3 {:foo [1 2 3]}]})
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(dump-data "sample.edn" {:foo [1 2 3 {:foo [1 2 3]}]})
+\end{clojure}
+
+\fi
+
+\noindent
+Here's the recovery:
+
+\begin{clojure}
+(-> "sample.edn" slurp read-string)
+;; {:foo [1 2 3 {:foo [1 2 3]}]}
+\end{clojure}
+
+\index{clojure.core!*print-level*}
+\index{clojure.core!*print-length*}
+
+Modify the function so that you can pass your values to the print length and depth.
+Ideally, this is the optional \verb|opt| map in which the function looks for settings.
+
+\subsection{Practice: String Localization}
+
+\label{translate}
+
+Below is an example from a real project with \verb|binding|. There is a web application in various languages. Depending on the settings, a client sees English or Russian text.
+
+\index{translation}
+
+Translations are stored as a map with two levels: locale and tags. A locale is the language code: \verb|ru|, \verb|en|, and others. It can be with domains, such as \verb|en_US| or \verb|en_GB|.
+The \verb|US| and \verb|GB| parts stand for American and British English.
+Rarely, the locale is triple to indicate the local alphabet or region.
+
+A tag is a short machine string.
+It describes the semantics of a phrase that will later replace it.
+From the \verb|ui/add-to-cart| tag, you can easily guess that it is the "add to cart" inscription in the interface.
+
+Maps might be in code or files, but the principle of the translation does not change. By locale and tag, a library does a lookup of a translation in the map.
+Let's write a naive approach in Clojure:
+
+%% TODO fix russian
+
+\ifx\DEVICETYPE\MOBILE
+
+%% \begin{clojure}
+%% (def tr-map
+%%   {:en {:ui/add-to-cart "Add to Cart"}
+%%    :ru {:ui/add-to-cart
+%%         "Добавить в корзину"}})
+
+%% (defn tr [locale tag]
+%%   (or (get-in tr-map [locale tag])
+%%       (format "<%s%s>" locale tag)))
+%% \end{clojure}
+
+\else
+
+%% \begin{clojure}
+%% (def tr-map
+%%   {:en {:ui/add-to-cart "Add to Cart"}
+%%    :ru {:ui/add-to-cart "Добавить в корзину"}})
+
+%% (defn tr [locale tag]
+%%   (or (get-in tr-map [locale tag])
+%%       (format "<%s%s>" locale tag)))
+%% \end{clojure}
+
+\fi
+
+\index{localization}
+
+The \verb|tr| function returns a translation by locale and tag. If no translation is found, we get a machine expression that will be noticed by localizers.
+
+The drawback of this function is that you need to specify the locale every time.
+That is tedious, especially considering that the locale does not change within the request.
+We need to shorten the physical and mental distancing between locale and translation.
+
+\index{call stack}
+
+Here, physical distancing is the call stack.
+Usually, the locale is calculated at the beginning of the request. By contrast, text translation is done towards the end.
+Make the locale global; otherwise, you have to push it down the call stack in arguments, which complicates the code.
+
+\index{frameworks!Django}
+
+Mental distancing means that at the time of translation, we don't care where the locale is.
+This information is redundant.
+If the primitive "translate tag" operation were enough, it would be great. The simplification benefits are evident in the example of a template system based on the \footurl{Django}{https://docs.djangoproject.com/en/2.2/topics/templates/}[Django templates][-23mm] principle.
+
+\index{libraries!Selmer}
+\index{templates}
+
+\footurl{Selmer}{https://github.com/yogthos/Selmer}[Selmer] is the Clojure analog of such a system.
+Its templates are similar to regular HTML files with insertions in curly braces.
+The code in the braces is values or expressions.
+Vertical lines stand for filters, i.e., conversion functions.
+For example, the entry below means that there is the \verb|:email| field from the \verb|user| map between the paragraph tags.
+
+\begin{htmldjango}
+<p>{{ user.email|lower }}</p>
+\end{htmldjango}
+
+\noindent
+The \verb|lower| filter converts the field case to lowercase.
+In Clojure, it looks like this:
+
+\begin{clojure}
+(str/lower-case (:name user))
+\end{clojure}
+
+Any function can be a filter, including \verb|tr|.
+The simpler a template looks, the better.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{htmldjango}
+<div class="widget">
+  <a href="/login">
+    {{ "ui/log-in"|tr }}
+  </a>
+  <a href="/help">
+    {{ "ui/help"|tr }}
+  </a>
+</div>
+\end{htmldjango}
+
+\else
+
+\begin{htmldjango}
+<div class="widget">
+  <a href="/login">{{ "ui/log-in"|tr }}</a>
+  <a href="/help">{{ "ui/help"|tr }}</a>
+</div>
+\end{htmldjango}
+
+\fi
+
+The \verb|tr| filter is a function of one variable.
+It takes a tag string and returns the translation. Of course, the locale must be known in advance.
+Let's make it so that the filter reads it from middleware and does not affect the translation in parallel requests.
+
+Binding through \verb|binding| will help.
+Let's declare the \verb|*locale*| variable without value. In Clojure, such a variable is called "unbound".
+Think of it as a cell with no data.
+
+Let's change the \verb|tr| function: now it only takes a tag and refers to the global *\verb|*locale*| var as the locale:
+
+\begin{clojure}
+(def ^:dynamic *locale*)
+
+(defn tr [tag]
+  (get-in tr-map [*locale* tag]))
+\end{clojure}
+
+\index{macros!with-locale}
+
+To isolate \verb|*locale*| from consumers, use the \verb|with-locale| macro.
+It executes the body while the variable is bound with the given locale.
+Within a macro, any translation will work for that locale:
+
+\begin{clojure}
+(defmacro with-locale
+  [locale & body]
+  `(binding [*locale* ~locale]
+     ~@body))
+\end{clojure}
+
+\index{middleware!wrap-locale}
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(with-locale :en
+  (tr :ui/add-to-cart))
+;; "Add to Cart"
+\end{clojure}
+
+\splitter
+
+%% TODO fix Russian
+%% \begin{clojure}
+%% (with-locale :ru
+%%   (tr :ui/add-to-cart))
+%% ;; "Добавить в корзину"
+%% \end{clojure}
+
+\else
+
+%%
+\noindent
+\begin{tabular}{ @{}p{5cm} @{}p{5cm} }
+
+\begin{clojure}
+(with-locale :en
+  (tr :ui/add-to-cart))
+;; "Add to Cart"
+\end{clojure}
+
+&
+
+
+%% TODO fix Russian
+%% \begin{clojure}
+%% (with-locale :ru
+%%   (tr :ui/add-to-cart))
+%% ;; "Добавить в корзину"
+%% \end{clojure}
+
+\end{tabular}
+
+%%
+\fi
+
+Let's write a middleware to determine the locale.
+For simplicity, let's assume this is the \verb|lang| parameter from an address string.
+If there is no parameter, take the default locale.
+The code below on the stack is wrapped in the \verb|with-locale| macro:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn request->locale [request]
+  (let [lang (get-in request
+               [:params "lang"])]
+    (keyword
+      (get #{"en" "ru"} lang "en"))))
+
+(defn wrap-locale [handler]
+  (fn [request]
+    (with-locale
+      (request->locale request)
+      (handler request))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn request->locale [request]
+  (let [lang (get-in request [:params "lang"])]
+    (keyword (get #{"en" "ru"} lang "en"))))
+
+(defn wrap-locale [handler]
+  (fn [request]
+    (with-locale (request->locale request)
+      (handler request))))
+\end{clojure}
+
+\fi
+
+Let's write the \verb|tr| filter for templates.
+Selmer has no way to specify a keyword, so instead of \verb|{{ :ui/sign-in }}| they write \verb|{{ "ui/sign-in"}}|.
+The \verb|tr| filter converts a string into a tag and then searches for a translation on it. The \verb|add-filter!| function adds \verb|tr| to the filter register.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(require
+ '[selmer.filters :refer [add-filter!]])
+
+(add-filter! :tr
+ (fn [line]
+   (-> line keyword tr)))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(require '[selmer.filters :refer [add-filter!]])
+
+(add-filter! :tr
+ (fn [line]
+   (-> line keyword tr)))
+\end{clojure}
+
+\fi
+
+Now we don't care about the locale source in translations. At any time, we can change the \verb|with-locale| and \verb|wrap-locale| without affecting the templates.
+The \verb={{ "ui/log-in"|tr }}= entry will remain the same even if the translation engine changes.
+
+\section{Local Variables in Context}
+
+\index{clojure.core!with-local-vars}
+\index{clojure.core!let}
+\index{clojure.core!var-get}
+\index{clojure.core!var-set}
+\index{variables!local}
+
+The \verb|with-local-vars| macro sets local variables. Within the macro, they behave like little atoms. You can write a value to a variable and get it back using the deref function.
+Local vars are useful for complicated business logic. The block with them looks linear and more human-readable.
+
+The \verb|with-local-vars| form is similar to \verb|let|: it is a binding vector and arbitrary code. The difference is that the \verb|var-get| and \verb|var-set| functions work inside the macro.
+With their help, variables are read and written.
+If the macro sets the \verb|a| variable, the form \verb|(var-set a 9)| should modify its content to 9.
+
+Note: the symbol of the variable will return its \emph object|, not the value.
+In the example below, we get not zero but an object of type \verb|Var|. Writing \verb|(+ a 1)| will result in a type error.
+
+\begin{clojure}
+(with-local-vars [a 0] a)
+;; #<Var: --unnamed-->
+\end{clojure}
+
+The \verb|var-get| function gets a value from a variable. For the sake of brevity, use the \verb|@|: \verb|(+ @a 1)| operator.
+
+Let's say you need to find several values in the tree and return them to composition.
+Last time we worked with an atom. Now we will solve the problem with local variables.
+
+The \verb|calc-billing| function calculates the amount that a customer must pay.
+The \verb|calc-billing| parameter contains data on resource consumption. We will form the total amount from three components. Each of them is calculated according to complicated conditions. Let's write the code imperatively, so it will better match the business logic:
+
+\begin{clojure}
+(defn calc-billing [data]
+  (with-local-vars
+    [a 0 b 0 c 0]
+    ;; find a
+    (when-let [usage ...]
+      (when-let [days ...]
+        (var-set a (* usage days))))
+    ;; find b
+    (when-let [vms ...]
+      (when-let [limits ...]
+        (var-set b (* limits vms))))
+    ;; find c ...
+    (+ (* @a @b) @c)))
+\end{clojure}
+
+The calculation is performed in three blocks, each of which finds a component.
+The \verb|when-let| cascade collects the desired variables, and if found, ends with \verb|var-set|.
+If the execution does not reach \verb|var-set|, the variable will remain zero.
+
+Local variables are not as advanced as atoms.
+For variables, there is no analog of the \verb|swap!| function (which swaps the atom value).
+\verb|With-local-vars| does not come in for building up collections.
+If \verb|user| is a local map, it will be difficult to add a new field to it.
+The \verb|var-set| function can only set a new map, while the combination of \verb|var-set| and \verb|var-get| looks awkward:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(with-local-vars [user {:name "Ivan"}]
+  ;; won't work
+  ;; (var-set user assoc :age 33)
+  ;; ugly
+  (var-set user (assoc @user :age 33))
+  @user)
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(with-local-vars [user {:name "Ivan"}]
+  ;; (var-set user assoc :age 33) ;; won't work
+  (var-set user (assoc @user :age 33)) ;; ugly
+  @user)
+\end{clojure}
+
+\fi
+
+The \verb|with-local-vars| macro is useful when the logic relies on simple types (numbers, strings).
+It is convenient to write state machines and stateful algorithms using local variables.
+That is a rarely used technique for Clojure, but it saves time and code at the right moment.
+
+\section{Global Changes in Context}
+
+\index{clojure.core!binding}
+\index{changes!global}
+
+\label{with-redefs}
+
+The advantage of \verb|binding| is that changes only take place in the current thread.
+They say that the \verb|binding| effect is thread-safe, which is considered a useful quality.
+However, there are situations when changes need to be global.
+To do this, we use the \verb|with-redefs| form.
+
+\mnoindent
+Its syntax is similar to \verb|binding|: a binding vector and arbitrary code. \verb|With-redefs| affects \emph{all} threads.
+Imagine a web server that responds to requests in parallel.
+If one of the pages is executing logic in \verb|with-redefs|, it will affect neighboring requests.
+Similarly with \verb|binding| and \verb|let|, changes are rolled back when exiting the macro.
+
+The example below explains the principles of \texttt{with\--redefs}.
+We replace the \verb|println| function with a surrogate that prints a persistent text.
+In the macro body, the future object with the \verb|(println 42)| body runs.
+
+\index{clojure.core!future}
+\index{futures}
+
+Futures are an intermediary between a client and multithreading.
+A future takes a block of code and passes it to an executor.
+Most often, the executor takes several processor threads and distributes tasks across them.
+When the task is completed, the client receives the result with deref of a future.
+
+The \verb|(println 42)| body is executed on a different thread.
+The \verb|@| operator in front of a future means: wait until the result from the executor comes.
+The code below should print "fake print":
+
+\index{clojure.core!constantly}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(with-redefs
+  [println (constantly
+             (print "fake print"))]
+  @(future (println 42)))
+;; fake print
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(with-redefs
+  [println (constantly (print "fake print"))]
+  @(future (println 42)))
+;; fake print
+\end{clojure}
+
+\fi
+
+That is because \verb|with-redefs| also affected the thread in which the executor processed the task.
+
+\mnoindent
+Without the \verb|@| operator, the effect of \verb|with-redefs| disappears: the future will output 42. The reason is that a future cycle takes some time, albeit a short one.
+Without the \verb|@| operator, we just run the future and exit \verb|with-redefs| right away.
+The pool will reach the \verb|(println 42)| task when the effect of the macro is over.
+
+The \verb|with-redefs| documentation emphasizes that the macro is useful for testing.
+Sometimes the application relies on third-party services like a geo search or social graph.
+During testing, there is a problem with access to services.
+The application should not access them: this complicates tests and makes them dependent.
+
+The idea is to replace the functions that access the network during the tests.
+Let's see in practice how to do this.
+
+\subsection{Practice: Application with Coordinates}
+
+\index{HTTP!POST}
+\index{coordinates}
+\index{geolocation }
+
+The mobile app sends the user's coordinates (longitude and latitude) to the server.
+Later, the user studies their travel history.
+Sure, the user expects not machine numbers but names of places.
+Therefore, it is necessary to find data about the place matching each pair of coordinates.
+
+The \verb|POST /location| page takes coordinates in a request body. To find out the location data, we address a third-party service. We read the response fields and write them to the database along with the coordinates. Then we return the \verb|200 OK| response to the client.
+
+The \verb|geo/place-info| function performs a geo search.
+As a result, we get a map with the keys \verb|:title|, \verb|:country|, \verb|:image_url|, and others.
+Here's a request handler:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn location-handler [request]
+  (let [{:keys [params]} request
+        point (select-keys params
+                [:lat :lon])
+        place (geo/place-info point)]
+    (db/create-location
+      (merge place point))
+    {:status 200 :body "OK"}))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn location-handler [request]
+  (let [{:keys [params]} request
+        point (select-keys params [:lat :lon])
+        place (geo/place-info point)]
+    (db/create-location (merge place point))
+    {:status 200 :body "OK"}))
+\end{clojure}
+
+\fi
+
+During the search, the mobile app is waiting for a response. In terms of
+machine, it's long because the network does not guarantee an instant response.
+The more clients send coordinates, the more requests we send to the geo-service.
+The number of open connections is growing; the system is slowing down.
+
+\index{clojure.core!future}
+
+A quick solution is to write coordinates into the database and immediately
+respond to a client, and take out collecting the location data into the future
+object. As a result, wait times are reduced: now the app is waiting only for
+writes to the database, which is faster than a request to a third-party service.
+
+In the new version, the \verb|db/create-point| functon writes coordinates and
+returns the \verb|id| of a new record. To later update the location with a place
+data, the key is needed. Database search and writing are performed in a future
+block.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(defn location-handler
+  [request]
+  (let [{:keys [params]} request
+        point (select-keys params
+                [:lat :lon])
+        row-id (db/create-point point)]
+    (future
+      (let [place (geo/place-info
+                    point)]
+        (db/update-place row-id place)))
+    {:status 200 :body "OK"}))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(defn location-handler
+  [request]
+  (let [{:keys [params]} request
+        point (select-keys params [:lat :lon])
+        row-id (db/create-point point)]
+    (future
+      (let [place (geo/place-info point)]
+        (db/update-place row-id place)))
+    {:status 200 :body "OK"}))
+\end{clojure}
+
+\fi
+
+Other options are possible, such as a background handler or a task queue.  But
+their implementation takes more time, and the future code will take a couple of
+lines. It is a cheap solution that will give you time to find a more elaborate
+one.
+
+\subsection{Tests}
+
+\index{tests}
+\index{clojure.core!with-redefs}
+
+Let's write a test for a new handler. In order not to generate network requests,
+we will temporarily replace the \verb|geo/place-info| function. To complete the
+picture, let's check what happens if the geo search throws an exception.
+
+Each test begins with the \verb|with-redefs| expression to replace \verb|geo/place-info|.
+To shorten the code, let's write the \verb|with-place-info| macro.
+It takes a function body and a block of code:
+
+\begin{clojure}
+(defmacro with-place-info
+  [result & body]
+  `(with-redefs [geo/place-info
+                 (fn [~'point] ~result)]
+     ~@body))
+\end{clojure}
+
+Here's a positive scenario. In the \verb|with-place-info| macro, the geo search
+will return the specified map. We call the handler and check that the answer is
+positive. To make sure that the future has written the data to the database, we
+wait and read the last location. It should contain values from the geo search.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(deftest test-place-ok
+  (with-place-info
+    {:title "test_title"
+     :country "test_country"}
+    (let [request {:params
+                   {:lat 11.111
+                    :lon 22.222}}
+          {:keys [status]}
+          (location-handler request)]
+      (is (= 200 status))
+      (Thread/sleep 100)
+      (let [location
+            (db/get-last-location)
+            {:keys [title country]}
+            location]
+        (is (= "test_title" title))
+        (is (= "test_country"
+               country))))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(deftest test-place-ok
+  (with-place-info
+    {:title "test_title"
+     :country "test_country"}
+    (let [request {:params {:lat 11.111 :lon 22.222}}
+          {:keys [status]} (location-handler request)]
+      (is (= 200 status))
+      (Thread/sleep 100)
+      (let [location (db/get-last-location)
+            {:keys [title country]} location]
+        (is (= "test_title" title))
+        (is (= "test_country" country))))))
+\end{clojure}
+
+\fi
+
+\index{HTTP!429}
+
+Negative scenario. Let geo search throw an exception with code 429.
+That can happen when the request limit is exceeded. Let's declare an exception:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(def ex-quota
+  (ex-info
+    "The limit of requests
+               has been reached"
+    {:status 429
+     :body {:code :QUOTA_REACHED}}))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(def ex-quota
+  (ex-info "The limit of requests has been reached"
+           {:status 429 :body {:code :QUOTA_REACHED}}))
+\end{clojure}
+
+\fi
+
+\noindent
+Let's check that the application will return a positive status, but there is no location data in the database because the geo search request failed.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(deftest test-place-quota-reached
+  (with-place-info (throw ex-quota)
+  (let [request {:params {:lat 11.111
+                          :lon 22.222}}
+        {:keys [status body]}
+        (location-handler request)]
+      (is (= 200 status))
+      (Thread/sleep 100)
+      (let [location
+            (db/get-last-location)
+            {:keys [title country]}
+            location]
+        (is (nil? title))
+        (is (nil? country))))))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(deftest test-place-quota-reached
+  (with-place-info (throw ex-quota)
+    (let [request {:params {:lat 11.111 :lon 22.222}}
+          {:keys [status body]} (location-handler request)]
+      (is (= 200 status))
+      (Thread/sleep 100)
+      (let [location (db/get-last-location)
+            {:keys [title country]} location]
+        (is (nil? title))
+        (is (nil? country))))))
+\end{clojure}
+
+\fi
+
+We can throw any exception with \verb|with-place-info|. This technic is useful when the \verb|catch| form is expecting specific classes.
+The following test simulates a network failure.
+If the application has a particular reaction to the exception, the test will capture this.
+Code modifying will become impossible without changes in the tests.
+
+\index{tests!errors}
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(deftest test-place-conn-err
+  (with-place-info
+    (throw (new java.net.ConnectException
+             "test_timeout"))
+    ...))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(deftest test-place-conn-err
+  (with-place-info
+    (throw (new java.net.ConnectException "test_timeout"))
+    ...))
+\end{clojure}
+
+\fi
+
+\index{mocks}
+
+The substitution of functions and classes is called \emph{mocking}.
+We'll cover tests in detail in the last chapter \page{chapter-tests}.
+For now, note that the \verb|with-redefs| macro is a simple way to mock something, that is, to replace it during tests.
+
+\subsection{The with-redefs-fn Function in Brief}
+
+\index{clojure.core!with-redefs-fn}
+
+The \verb|with-redefs| relies on the \verb|with-redefs-f| function. The
+difference in the syntax of the latter is that it accepts a map and a function
+with no arguments.  Map keys are \verb|Var| objects. The function will run at
+the moment once the variables have received new values.
+
+Let's rewrite our example using \verb|with-redefs-fn| instead of \verb|geo/place-info|.
+Recall that \verb|#'|\texttt{<some\-thing>} means \verb|(var <something>)|:
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(with-redefs-fn
+  {#'geo/place-info (fn [point]
+                      {:title "test"})}
+  (fn []
+    (geo/place-info {:lat 1 :lon 2})))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(with-redefs-fn
+  {#'geo/place-info (fn [point] {:title "test"})}
+  (fn []
+    (geo/place-info {:lat 1 :lon 2})))
+\end{clojure}
+
+\fi
+
+\index{syntax!\texttt{\#} (hash)}
+
+Since \verb|with-redefs-fn| is a function, it cannot accept arbitrary code as macros do.
+To pass the code, it is wrapped into a function with no arguments.
+If the code is one large form (\verb|let| or \verb|do|), you don't need to enclose it in \verb|(fn [])|.
+Use the \verb|#| character in front of the form to turn it into an anonymous function.
+
+\ifx\DEVICETYPE\MOBILE
+
+\begin{clojure}
+(with-redefs-fn
+  {#'geo/place-info (fn [point]
+                      {:title "test"})}
+  #(let [point {:lat 1 :lon 2}
+         place (geo/place-info point)]
+     ...))
+\end{clojure}
+
+\else
+
+\begin{clojure}
+(with-redefs-fn
+  {#'geo/place-info (fn [point] {:title "test"})}
+  #(let [point {:lat 1 :lon 2}
+         place (geo/place-info point)]
+     ...))
+\end{clojure}
+
+\fi
+
+The \verb|with-redefs-fn| function looks strange because of a map and the \verb|#'| characters.
+It is not like \verb|let|, \verb|binding|, and other forms of binding in Clojure.
+The \verb|with-redefs| macro hides these features; use it whenever possible.
+
+\section{Summary}
+
+Clojure offers special types for mutable data.
+Unlike imperative languages, where changes are built into the syntax, Clojure uses special forms.
+The language is designed so that data is rarely changed.
+They have risen to this advanced level from the basics of immutability.
+Let's list the techniques we've covered and situations where they are useful.
+
+\emph{An atom} is a wrapper around a value.
+To get content, use the \verb|@| operator or the \verb|(deref <atom>)| function.
+The \verb|reset!| function sets a new value.
+In most cases, the atom is changed iteratively using \verb|swap!|, which calculates a new value from the current one.
+
+Atoms store the project state.
+These are counters, sessions, and a local cache to speed up calculations.
+Atoms play the role of variables in imperative code. Sometimes the former store a module state, such as the current connection to a database.
+
+The \emph{volatile} object is a lightweight version of an atom.
+Unlike the latter, \verb|volatile| does not support validators or watchers and does not control access from different threads.
+
+\emph{Transient collections} are derived from permanent (immutable) counterparts.
+When a collection is transient, its contents change.
+The \verb|conj!|, \verb|assoc!|, and other functions that end with an exclamation mark work with such data structures.
+The \verb|persistent!| function closes up the collection and returns its persistent version.
+
+Transient collections are faster than immutable ones, so they are useful for big data.
+Work with them from one thread.
+Other code parts don't need to be aware that the collection is modifying.
+Sharing transient collections is a blunder.
+
+The \emph{alter-var-root} function alters the global variable.
+With its help, you can invade another's namespace and fix something.
+You can resort to \verb|alter-var-root| to modify code that you don't own.
+Its other use is stateful modules for building a system.
+
+The \emph{set!} form modifies Clojure system variables.
+These are special vars with earmuffs that affect the system behavior as a whole.
+\verb|Set!| is rare in code; it's better to specify the variables in the project settings.
+
+The \emph{binding} macro executes the code, making temporary changes.
+The macro binds a dynamic variable to a new value.
+To make a variable dynamic, it is assigned the \verb|^:dynamic| flag and marked with earmuffs.
+
+\verb|Binding| acts only in the current thread.
+Use it to make a piece of code behave differently: for example, to output text not to the screen but a file.
+Dynamic variables are simpler to move down the call stack, as shown in the locale example.
+
+The \emph{with-local-vars} macro executes the body with arbitrary variables.
+They are like an atom with two actions: read and write a value.
+This form is useful when dealing with complex imperative logic.
+The variables disappear when exiting the macro.
+
+The \emph{with-redefs} construct temporarily changes \verb|def| definitions.
+Unlike \verb|binding|, it acts globally.
+All background entities, such as futures or agents, will pick up the changes.
+verb|With-redefs| is a wrapper over the low-level \verb|with-redefs-fn| function.
+It is mostly useful for mocking during testing.
