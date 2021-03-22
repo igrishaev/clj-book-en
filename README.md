@@ -1,4 +1,6 @@
-# Книга «Clojure на производстве»
+# The book «Clojure in Production»
+
+[Russian version](https://github.com/igrishaev/clj-book/)
 
 [Печатная версия](https://grishaev.me/clojure-in-prod/) | [PDF-бандл](https://gumroad.com/l/ZcEET)
 
