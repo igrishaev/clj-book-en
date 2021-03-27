@@ -5,14 +5,14 @@
 \index{systems}
 
 \begin{teaser}
-In this chapter, I'll tell you about systems, i.e., collections of interrelated components. We'll look at how large projects are assembled of small parts as well as how to overcome complexity and make the parts work as one.
+In this chapter, we will talk about systems, i.e., collections of interrelated components. We'll look at how large projects are assembled of small parts as well as how to overcome complexity and make all the parts work as one.
 \end{teaser}
 
-The concept of a system is related to the configuration we just discussed. The configuration answers the question of how to \emph{get} the parameters, and the system knows how \emph{to use} them.
+The concept of a system is related to the configuration we discussed recently. The configuration answers the question of how to get the parameters, and the system knows how to use them.
 
 Systems emerged when the demand for long-running applications arose. We don't require such things from scripts and utilities as they have a short runtime and a state that does not last long. When scripts and utilities finish their work, resources get released, so there is no point in monitoring them.
 
-Things are different for server applications: they work all the time, and therefore, are designed differently than scripts. The application consists of components that run in the background. Each component performs its specific task. At startup, the app enables enables components in the correct order and builds connections between them.
+Things are different for server applications: they work all the time, and therefore, are designed differently than scripts. The application consists of components that run in the background. Each component performs its specific task. At startup, the app enables components in the correct order and builds connections between them.
 
 \section{More Details on Systems}
 
@@ -22,7 +22,7 @@ A component is a stateful object. It is affected by the ``on'' and ``off'' opera
 
 \index{dependency graph}
 
-Typical application components are server, database, and cache. In order not to open a connection for every database request, you need a connection pool. I should hate to create it manually and pass it into JDBC functions. There should be a component that, when enabled, opens the pool and stores it. Such a component offers consumers methods for working with a database. Internally, they use an open pool.
+Typical application components are server, database, and cache. In order not to open a connection for every database request, you need a connection pool. We should not create it manually and pass it into JDBC functions. There should be a component that, when enabled, opens the pool and stores it. Such a component offers special methods for consumers to work with a database. Internally, the methods use an open pool.
 
 \index{OOP}
 
@@ -30,13 +30,13 @@ At first glance, the scheme resembles OOP and encapsulation. But don't jump to c
 
 \subsection{Dependencies}
 
-The main point of the system is component dependencies. A server, database, and cache are independent of each other. These are the base components of the system on which others, a level higher, rely. Suppose a background thread reads the database and sends emails. It will be wrong if the component opens new connections to the database and email. Instead, it takes the enabled components and works with them like with a black box.
+The main point of the system is component dependencies. A server, database, and cache are independent of each other. These are the base components of the system on which others, of a higher level, rely. Suppose a background thread reads the database and sends emails. It will be wrong if the component opens new connections to the database and email. Instead, it takes the enabled components and works with them like with a black box.
 
 A system starts and stops components in the correct order. If component A depends on B and C, then by the time A starts up, the other two should be enabled. On completion, the B and C components must not be shut down as long as A is running because this will disrupt its operation. The system builds a dependency graph between components. The graph is traversed so as to satisfy all participants.
 
 It should be easy to add a new component to a system. Ideally, the system is a combination of maps and lists.  The boot code runs through them and enables the components. Extending the system means adding a new node to the tree.
 
-Once the system is aware of the dependencies, a subset of it can be included. Let's say you need to debug an email handler that depends on a database and SMTP server. You don't need the web server and cache in this case, and starting the entire system is redundant. Advanced systems offer a feature with ``run this component and its dependencies'' semantics.
+Once the system is aware of the dependencies, a subset of it can be launched. Let's say you need to debug an email handler that depends on a database and SMTP server. You don't need the web server and cache in this case, and starting the entire system is redundant. Advanced systems offer a feature with ``run this component and its dependencies'' semantics.
 
 \subsection{Advantages}
 
@@ -44,7 +44,7 @@ At first glance, it seems that the system only overcomplicates things. It will r
 
 The system puts the project in order. As the codebase grows, it becomes important that the components of a project are in the same style. If you follow this path, the service components will go to the libraries, and only the logic will remain in the project. It's easier to start a project with a tried-and-tested base of internal components.
 
-Systems are useful at all stages, especially when testing. Tests run a system where some components work differently. For example, an SMS sender writes messages to a file or atom. The authorization component reads the verification code from these sources. The approach does not guarantee complete reliability, but it will execute tests in isolation, without resorting to third-party services. We'll go into more detail about the problem of isolation in the chapter on tests \page{test-isolation}.
+Systems are useful at all stages, especially when testing. Tests run a system where some components work differently. For example, an SMS sender writes messages to a file or an atom. The authorization component reads the verification code from these sources. The approach does not guarantee complete reliability, but it will execute tests in isolation, without resorting to third-party services. We'll go into more detail about the problem of isolation in the chapter on tests \page{test-isolation}.
 
 \section{Preparing for the Overview}
 
@@ -57,7 +57,7 @@ That is an amateur solution because the system is not aware of the dependencies 
 
 Clojure offers several libraries for systems. We'll take a look at Mount, Component, and Integrant. These libraries differ in their approach to describing components and dependencies. So we will look at the problem from different angles.
 
-I deliberately arranged the libraries in this order. Mount is the simplest of them, so let's start with it as an introduction to the topic. Component has become an industry standard. Let's pay more attention to it and therefore put it in the middle. Integrant completes our overview. We'll discuss it as an alternative to the Component library, which you will be familiar with by then.
+We deliberately arranged the libraries in this order. Mount is the simplest of them, so let's start with it as an introduction to the topic. Component has become an industry standard. Let's pay more attention to it and therefore put it in the middle. Integrant completes our overview. We'll discuss it as an alternative to the Component library, which you will be familiar with by then.
 
 Our system is similar to what you might come across in practice. It consists of a web server, a database, and a worker (a background task that updates records in the database). We added the worker specifically to help you learn how to work with dependencies. To better understand the system, let's draw its topology \fig{fig:chart-system}.
 
@@ -87,9 +87,9 @@ The background process (aka worker) supplements the records in the database with
 
 If you have PostgreSQL installed, create a new database and a table in it. If not, it's time to try Docker. It is a program for running applications from images. Here, an image is a package containing an app and everything needed for running. The running image is called a container.
 
-Containers have several advantages. The application lives in an isolated environment and, therefore, is separated from the main system. Along with the safety problem, this solves the problem of \emph{cleanliness} — the container does not leave traces of working unless otherwise indicated.
+Containers have several advantages. The application lives in an isolated environment and, therefore, is separated from the main system. Along with the safety problem, this solves the problem of cleanliness~--- the container does not leave traces of working unless otherwise indicated.
 
-Docker searches for images in an open repository where programs of different versions and bundles are published. If you specifically need PostgreSQL version 9.3, download the image with this tag. Installing this version on the system will most likely result in a conflict with an already working database.
+Docker searches for images in an open repository where programs of different versions and bundles are published. If you specifically need PostgreSQL version 9.3, download the image with this tag. Installing this version on the host system will most likely result in a conflict with an already working database.
 
 
 Some images can be configured with environment variables or files. At startup, a PostgreSQL image loads all \verb|*.sql| files from the \texttt{/docker-entrypoint--initdb.d} folder. If we associate the folder to the local path with migrations, we'll get a ready-to-use database. At the same time, we did not write a single line of code but only specified the settings.
@@ -142,7 +142,7 @@ services:
 \fi
 
 
-The \verb|initdb.d| folder contains SQL files for starting the database. The \verb|01.init.sql| file with the table is enough:
+The \verb|initdb.d| folder contains SQL files for starting the database. The \verb|01.init.sql| file carries the \code{requests} table:
 
 \index{languages!SQL}
 
@@ -300,7 +300,7 @@ Above, we made a mistake by explicitly setting the server parameters in the comp
 
 \index{config!in Mount}
 
-The \verb|config| entity is a lightweight configuration loader. For the sake of brevity, we will skip catching errors and other details. The \verb|:start| phase reads the EDN file. Replace \texttt{edn/read\--string}| with Yummy, Aero, or your solution. The component doesn't need the \verb|stop| phase because it is stateless.
+The \verb|config| entity is a lightweight configuration loader. For the sake of brevity, we will skip catching errors and other details. The \verb|:start| phase reads the EDN file. Replace \texttt{edn/read\--string} with Yummy, Aero, or your solution. The component doesn't need the \verb|stop| phase because it is stateless.
 
 \ifnarrow
 
@@ -326,7 +326,7 @@ The \verb|config| entity is a lightweight configuration loader. For the sake of 
 
 \fi
 
-The \verb|system.config.edn| file contains a map, in which the key is the component name, and the value is parameters. Let's put the server under the \verb|:jetty| key:
+The \verb|system.config.edn| file contains a map, in which the key is the component name, and the value is parameters. Let's put the server under the \verb|:jetty| group:
 
 \begin{english}
   \begin{clojure}
@@ -370,7 +370,8 @@ Let's rewrite the server to read the configuration:
   :start
   (let [{jetty-opt :jetty} config]
     (run-jetty app jetty-opt))
-  :stop (.stop server))
+  :stop
+  (.stop server))
   \end{clojure}
 \end{english}
 
@@ -381,7 +382,7 @@ The result is a system of two components, where one depends on the other. Make s
 \index{libraries!JDBC}
 \index{libraries!HikariCP}
 
-Let's prepare a database component. We'll need \footurl{JDBC}{https://github.com/clojure/java.jdbc}[JDBC][1mm] and \footurl{HikariCP}{https://github.com/tomekw/hikari-cp}[HikariCP][20mm] libraries. The former offers access to relational databases. It is a set of functions that work the same for different bases. The following statements will read and write a user to PostgreSQL, MySQL, or Oracle:
+Let's prepare a database component. For this, we will need \footurl{JDBC}{https://github.com/clojure/java.jdbc}[JDBC][1mm] and \footurl{HikariCP}{https://github.com/tomekw/hikari-cp}[HikariCP][20mm] libraries. The former offers access to relational databases. It is a set of functions that work almost the same for different engines. The following statements will read and write a user to PostgreSQL, MySQL, or Oracle:
 
 \ifnarrow
 
@@ -409,13 +410,13 @@ For each backend, JDBC builds a request taking into account its peculiarities.
 
 \index{JDBC!spec}
 
-JDBC functions take \emph{the JDBC spec} as the first parameter. Usually, it is a connection map: the server address and port, the database name, the user, and the password. For each request, JDBC opens a connection, exchanges data, and closes the connection.
+JDBC functions take a JDBC spec as the first parameter. Usually, it is a connection map: the server address and port, the database name, the user, and the password. For each request, JDBC opens a connection, exchanges data, and closes the connection.
 
 The spec may contain the \verb|:datasource| key with a ready data source. In this case, JDBC ignores other keys and works directly with ~\verb|:datasource|. HikariCP offers a function to build a source with a connection pool. Each time we request a connection from the source, we'll get one of the previously opened.
 
 \index{JDBC!datasource}
 
-The source stores the state, so let's move it into the component. Let's prepare the \verb|db.clj| module:
+The source stores the state, so let's move it into the component. First, we prepare the \verb|db.clj| module:
 
 \ifnarrow
 
@@ -494,13 +495,15 @@ Start the system and execute a request:
   \end{clojure}
 \end{english}
 
+If you got the right data, then both the database and the pool are ready for work.
+
 \subsection{Background Task}
 
 \label{worker}
 
-Everything is ready for the last system component. It is a worker that runs on a separate thread. It selects raw records from the database and supplements them with fields from a third-party service.
+Everything is ready for the last system component. It is a worker that runs on a separate thread. It selects records from the database that wait for processing and supplements them with fields from a third-party service.
 
-The \verb|requests| table stores the page address and client IP. The \verb|is_processed| flag indicates whether the entry has already been processed. The \verb|city|, \verb|country|, and other fields are \verb|NULL| by default.
+The \verb|requests| table stores the page address and IP of a client who has visited it. The \verb|is_processed| flag indicates whether the entry has already been processed. The \verb|city|, \verb|country|, and other fields are \verb|NULL| by default.
 
 \index{null!in SQL}
 
@@ -523,7 +526,7 @@ Let's express the worker in terms of Mount. The task runs in a separate thread, 
 
 \index{futures!implementation}
 
-In Clojure, this is solved using a future and atom. The atom stores the flag that is a sign of the continuation of the loop. At every step, a future dereferences the atom, and if it is true, executes the task. To complete the future, take two actions. First, set the flag to false. Second, wait until the future becomes \emph{realized}. In Clojure, this means that the executor has completed the task and responded to the future.
+In Clojure, this is solved using a future and atom. The atom stores the flag that is a sign of the continuation of the loop. At every step, a future dereferences the atom, and if it is true, executes the task. To complete the future, take two actions. First, set the flag to false using \code{reset!}. Second, wait until the future becomes realized. In Clojure, this means that the executor has completed the task and responded to the future.
 
 Let's prepare a worker module. You will need a config, database, logging, and HTTP client:
 
@@ -558,7 +561,7 @@ Let's prepare a worker module. You will need a config, database, logging, and HT
 
 \fi
 
-The worker is a map with the \verb|:flag| and \verb|:task| fields, a state, and a future. The \verb|:start| phase prepares this map. The \verb|make-task| function does not exist yet, but we believe that it will return a future. In the \verb|:stop| phase, the flag becomes false, and we wait for the future to stop.
+The worker is a map with the \verb|:flag| and \verb|:task| fields, an atom, and a future. The \verb|:start| phase prepares this map. The \verb|make-task| function does not exist yet, but we believe that it will return a future. In the \verb|:stop| phase, the flag becomes false, and we wait for the future to stop.
 
 \index{clojure.core!realized?}
 
