@@ -781,17 +781,11 @@ If we call \verb|get-ip-info| with the Berlin address, we get the following map:
   \begin{clojure}
 (get-ip-info "85.214.132.117")
 
-{:postal_code "12529"
- :continent_code "EU"
- :region_name "Land Berlin"
- :city "Berlin"
- :isp "Strato AG"
+{:city "Berlin"
  :region "BE"
  :country_code "DE"
  :country_name "Germany"
- :time_zone "Europe/Berlin"
  :lat 52.5167
- :company "Strato AG"
  :lng 13.4}
   \end{clojure}
 \end{english}
@@ -845,7 +839,7 @@ The address \verb|31.148.198.0| will resolve in Pinsk, the city of Belarus. The 
 
 The components are ready and working separately; all that remains is to put them together. To do this, we'll write a central module, \verb|core|, which will import all known components. The \verb|(mount/start)| call from it will start the entire system. Let's see why this module is needed.
 
-The \verb|start| and \verb|stop| functions work nothing but on components known to Mount. If you load the worker module, then Mount gets information about \verb|worker|, \verb|db|, and \verb|config|, but not \verb|server|, because no one refers to it in \verb|require|. Therefore, the server module will not load, and the system will not know about this component. You can solve the problem by importing all components without exception.
+The \verb|start| and \verb|stop| functions work nothing but on components known to Mount. If you load the worker module, then Mount gets information about \verb|worker|, \verb|db|, and \verb|config|, but not \verb|server|, because no one refers to it in \verb|require|. Therefore, the server module will not load, and the system will not know about this component. But if you import all the modules explicitly, it will solve the problem.
 
 \label{mount-main}
 
@@ -889,7 +883,7 @@ Mount relies on the Clojure compiler to compute the order. Namespaces depend on 
 
 \index{graph of references}
 
-\ifx\MODE\PRINT
+\ifprint
 
 \noindent
 Let's draw a graph of references:
@@ -900,7 +894,7 @@ Let's draw a graph of references:
 
 \fi
 
-\ifx\MODE\EBOOK
+\ifebook
 
 \noindent
 Let's draw a graph of references \fig{fig:chart-sys-2}.
@@ -938,7 +932,7 @@ The compiler will load \verb|mount.worker| only after resolving the dependencies
 
 \fi
 
-\ifx\MODE\PRINT
+\ifprint
 
 \noindent
 From the compiler's point of view, it looks like this:
@@ -949,7 +943,7 @@ From the compiler's point of view, it looks like this:
 
 \fi
 
-\ifx\MODE\EBOOK
+\ifebook
 
 \noindent
 From the compiler's point of view, it looks like this \fig{fig:chart-sys-3}:
@@ -962,11 +956,11 @@ From the compiler's point of view, it looks like this \fig{fig:chart-sys-3}:
 
 \fi
 
-Before loading the \verb|db|, the compiler takes care of \verb|config|. The latter is independent of other modules and will be loaded first. Then the compiler will return to\verb|db| and load it. After that, it will rise to the \verb|worker| level. The \verb|db| module is ready; \verb|config| is next on the list. We've loaded the configuration in the \verb|db| stage. Clojure doesn't load a module twice, so the compiler skips it. The last step will load \verb|worker|.
+Before loading the \verb|db|, the compiler takes care of \verb|config|. The latter is independent of other modules and will be loaded first. Then the compiler will return to \verb|db| and load it. After that, it will rise to the \verb|worker| level. The \verb|db| module is ready; \verb|config| is next on the list. We've loaded the configuration in the \verb|db| stage. Clojure doesn't load a module twice, so the compiler skips it. The last step will load \verb|worker|.
 
 \index{namespaces}
 
-We have deduced the order of the \emph{namespaces}: \verb|config|, \verb|db|, \verb|worker|. Each \verb|defstate| form is executed on the same queue. Therein lies a trick: the \verb|defstate| call increments the internal Mount counter, and the component remembers this number. The \verb|config|, \verb|db|, and \verb|worker| entities will be numbered 1, 2, and 3. Mount walks through components in ascending order to start the system and descending to stop it.
+We have deduced the order of the namespaces: \verb|config|, \verb|db|, \verb|worker|. Each \verb|defstate| form is executed on the same queue. Therein lies a trick: the \verb|defstate| call increments the internal Mount counter, and the component remembers this number. The \verb|config|, \verb|db|, and \verb|worker| entities will be numbered 1, 2, and 3. Mount walks through components in ascending order to start the system and descending to stop it.
 
 \subsection{Internal Structure}
 
@@ -996,19 +990,20 @@ Mount stores information about components in private atoms. They are hidden from
 The \verb|_state| variable will contain a component map. The double \verb|@| operator plays the following role. The \verb|resolve| function will return a \verb|Var| object by a symbol. Earlier, we found out that the \verb|Var| object is a container that stores a value \page{var-section}. The first \verb|@| retrieves a value from \verb|Var|; it is an atom with a map. The second \verb|@| gets the map from the atom.
 
 
-The map's key is a text link to the component. In our case, it is \texttt{\#'book.systems.mount\-.config/config}. The value is another map with the state of the component. We are interested in the \verb|order| field, i.e., its number. Let's sort the components by it and get the correct order:
+The map's key is a text link to the component. In our case, it is \texttt{\#'book.systems.mount\-.config/config}. The value is a nested map with the state of the component. We are interested in the \verb|order| field, i.e., its number. Let's sort the components by it and get the correct order:
 
 \begin{english}
   \begin{clojure}
 (->> _state
-     vals
-     (sort-by :order)
-     (map #(-> % :var meta :name)))
+     vals (sort-by :order)
+     (map (fn [cmp]
+            (-> cmp :var meta :name))))
+
 ;; (config server db worker)
   \end{clojure}
 \end{english}
 
-The code below will return a map of running components with a similar structure:
+The \code{running} atom holds a map of started components with a similar structure:
 
 \begin{english}
   \begin{clojure}
@@ -1038,13 +1033,15 @@ The ease of changing a component when calling \verb|start| and \verb|stop| is li
 \begin{english}
   \begin{clojure}
 (defstate server
-  :start (let [{jetty-opt :jetty} config]
-           (run-jetty app jetty-opt))
-  :stop (.stop ^Server server))
+  :start
+  (let [{jetty-opt :jetty} config]
+    (run-jetty app jetty-opt))
+  :stop
+  (.stop ^Server server))
   \end{clojure}
 \end{english}
 
-The \verb|def-state| form expands  into multiple expressions. These are the global variable with no value:
+The \verb|defstate| form expands  into multiple expressions. These are the global variable with no value:
 
 \index{variables!without value}
 
@@ -1120,9 +1117,9 @@ With a manual startup, you are responsible for the order of the components. Let'
 
 We'll get a weird exception. It will be thrown in the \verb|db| component where the pool is created. The \verb|config| object is not running, and the expression \spverb|(:pool config)| will return \verb|nil|. If we try to create a pool from nil, we get \verb|NPE|.
 
-As the system grows, it becomes more difficult to track dependencies. Mount only knows the order of the components, not how they are related. This is the weak point of this library~--- programmers have to specify components manually to enable the subsystem. To improve this scenario, the library offers component \emph{selectors}. These are functions that return references to components by some hallmark.
+As the system grows, it becomes more difficult to track dependencies. Mount only knows the order of the components, not how they are related. This is the weak point of this library~--- programmers have to specify components manually to enable the subsystem. To improve this scenario, the library offers component selectors. These are functions that return references to components by some hallmark.
 
-For example, the \verb|except| selector will return component names \emph{other than} those listed. If we pass the result into \verb|start|, we get a system without the specified components. Below, a subset is enabled without a web server:
+For example, the \verb|except| selector will return component names other than those listed. If we pass the result into \verb|start|, we get a system without the specified components. Below, a subset is enabled without a web server:
 
 \begin{english}
   \begin{clojure}
@@ -1145,7 +1142,7 @@ If you are using Emacs and CIDER, connect to the project via \verb|M-x cider-con
 
 A message will appear saying that the server rebooted. The \verb|defstate| macro checks if a component with that name exists and is running. Mount will stop the component and start it with new versions of \verb|start| and \verb|stop|.
 
-Rebooting is not always the desired behavior. With frequent changes, ``out of sync'' occurs~--- a situation when a component is considered disabled, but its resource is busy. For example, in the \verb|:stop| block, we did not call the \verb|(.stop)| method. If we restart such a component, we get an error that the port is busy.
+Rebooting is not always the desired behavior. With frequent changes, ``out of sync'' occurs~--- a situation when a component is considered disabled, but its resource is busy. For example, in the \verb|:stop| block, we did not call the \verb|(.stop)| method. If we restart such a component, we will get an exception saying the port is busy.
 
 The component's response to reloading is indicated in metadata. It is the \verb|:on-reload| field, which by default is \verb|:restart|. With it, the component restarts itself when \verb|defstate| is called again. If you set \verb|:stop|, the component will stop. The \verb|:noop| key means ``do nothing.'' The component with metadata looks like this:
 
@@ -1176,7 +1173,7 @@ The component's response to reloading is indicated in metadata. It is the \verb|
 
 \fi
 
-If unsure, choose \verb|noop|; with it, loading code into the REPL has no side effects. Changes to the code are not always component-related: there may be a typo or a comment. If you modified the component, restart it manually.
+If unsure, choose \verb|noop|; with it, loading code into the REPL has no side effects. Changes to the code are not always component-related: there may be a typo or a comment. If you modified the component exactly, restart it manually.
 
 \subsection{Independent Work}
 
@@ -1188,8 +1185,8 @@ Let's go back to the \verb|get-ip-info| function from the worker module. For eac
 
 \begin{english}
   \begin{clojure}
-(:require
- [clj-http.conn-mgr :refer
+(require
+ '[clj-http.conn-mgr :refer
    [make-reusable-conn-manager
     shutdown-manager]])
 
@@ -1210,8 +1207,13 @@ Let's go back to the \verb|get-ip-info| function from the worker module. For eac
 
 \begin{english}
   \begin{clojure}
+(require
+ '[clj-http.conn-mgr :refer
+   [make-reusable-conn-manager
+    shutdown-manager]])
+
 ;; create a new pool
-(def cm (clj-http.conn-mgr/make-reusable-conn-manager
+(def cm (make-reusable-conn-manager
          {:timeout 2 :threads 3}))
 
 ;; make a request within the pool
@@ -1219,7 +1221,7 @@ Let's go back to the \verb|get-ip-info| function from the worker module. For eac
             {:connection-manager cm})
 
 ;; shut down the pool
-(clj-http.conn-mgr/shutdown-manager cm)
+(shutdown-manager cm)
   \end{clojure}
 \end{english}
 
@@ -1240,7 +1242,7 @@ The \footurl{Component}{https://github.com/stuartsierra/component}[Compo-\\*nent
 
 Here, as in Mount, the \verb|start| and \verb|stop| operations act on a component. They return a \emph{copy} of the object in a new state; the original component remains unchanged. You can say that components are immutable. This cuts off errors related to global variables.
 
-A system is a map of components with dependencies. Initially, the system is at rest; its components are not running. The startup code walks through and enables them. The result is a working copy of the system. It is similar to the original one, but each component has been replaced with its work version. Stopping works the same way: the output will be a disabled copy of the system.
+A system is a map of components with dependencies. Initially, the system is at rest; its components are not running. The startup code walks through and enables them. The result is a working copy of the system. It is similar to the original one, but each component has been replaced with its started version. Stopping acts the same way: the output will be a disabled copy of the system.
 
 Global state is illegal in Component. The library has no hidden atoms to account for components. One component can only access another if they are dependent. Like a system, a component avoids atoms and other mutable types. For each action, it generates a new copy of itself.
 
@@ -1254,13 +1256,13 @@ A component is an object that implements the \verb|Lifecycle| protocol. The prot
 \index{records}
 \index{protocols!Lifecycle}
 
-A record differs from a dictionary in that it lists keys in advance. These are called \emph{slots} of the record. Slots work faster than the keys of a regular map. The component needs them for input parameters and state.
+A record differs from a map in that it lists keys in advance. These are called slots of the record. Slots work faster than the keys of a regular map. The component needs them for input parameters and state.
 
 Records and protocol fit together at the language level. When declaring a record, you can immediately expand it with the protocol. In protocol methods, slots are available as local variables. This way, a programmer can reduce the amount of code and save time.
 
 \index{OOP}
 
-A component hides its state, and only it knows how to control it. It would be a mistake to read its slots and pass them to functions. Use the methods included in the component protocol. In Component, code is somewhat similar to OOP: it is an object and a set of operations. Like a class, you can initiate, start, and stop a component.
+A component hides its state, and only it knows how to control it. It would be a mistake to read its slots and pass them to functions. Instead, use the methods included in the component protocol. In Component, code is somewhat similar to OOP: it is an object and a set of operations. Like a class, you can initiate, start, and stop a component.
 
 \index{OOP!SOLID}
 
@@ -1296,7 +1298,7 @@ Let's rewrite our system from the previous section with Component. We'll start w
 
 \fi
 
-A component is a record with two slots~--- \verb|:options| and \verb|:server|. Options contain the Jetty server's parameters, and \verb|server| contains its instance. The \verb|component/Lifecycle| line stands for the protocol that implements the record. Below is the \emph{implementation} of the protocol.
+A component is a record with two slots~--- \verb|:options| and \verb|:server|. Options contain the Jetty server's parameters, and \verb|server| contains its instance. The \verb|component/Lifecycle| line stands for the protocol that implements the record. Below is the implementation of the protocol.
 
 \ifnarrow
 
@@ -1340,9 +1342,19 @@ The \verb|start| method will return the same record, but with the full \verb|:se
 
 \index{initialization}
 
-Inside the methods, we refer to slots as local variables. This only works if the methods are declared inside \verb|defrecord|. If you extend the record with a separate step, for example, via \verb|extend|, access to the slots will be lost. In this case, you have to extract them from the \verb|this| variable.
+Inside the methods, we refer to slots as local variables. This only works if the methods are declared inside \verb|defrecord|. If you extend the record with a separate step, for example, via \verb|extend|, access to the slots will be lost. In this case, you have to extract them from the \verb|this| variable, for example:
 
-The \verb|Server| entity is not a component but just an abstract description. In the first step, it \emph{is initiated}, that is, an instance of it is created. To do this, use the \verb|map-> <Record>| function, where \verb|<Record>| is the name of the record. The \verb|defrecord| macro automatically creates this function. In our case, it is named \verb|map-> Server|. The function takes a regular map and returns its typed version. The keys of a map correspond to the record slots. If the key does not exist, the slot is \verb|nil|.
+\begin{english}
+  \begin{clojure}
+(stop [{:as this :keys [server]}]
+  (.stop server))
+;; or
+(stop [this]
+  (.stop (:server this)))
+  \end{clojure}
+\end{english}
+
+The \verb|Server| entity is not a component yet but just an abstract description. In the first step, it is initiated, that is, an instance of it is created. To do this, use the \verb|map-><Record>| function, where \verb|<Record>| is the name of the record. The \verb|defrecord| macro automatically creates this function in the same namespace. In our case, it is named \verb|map->Server|. The function takes a regular map and returns its typed version. The keys of a map correspond to the record slots. If the key does not exist, the slot is \verb|nil|.
 
 \ifnarrow
 
@@ -1366,7 +1378,7 @@ The \verb|Server| entity is not a component but just an abstract description. In
 
 \fi
 
-The \verb|s-created| variable is an instance of the \verb|Server| record. We specified the \verb|options| slot, but not the \verb|server| one because it will be filled out later.
+The \verb|s-created| variable is an instance of the \verb|Server| record. We specified the \verb|options| slot, but not the \verb|server| one because it will be filled out later. Now pass the result into the \code{start} method:
 
 \ifnarrow
 
@@ -1387,8 +1399,7 @@ The \verb|s-created| variable is an instance of the \verb|Server| record. We spe
 
 \fi
 
-
-This expression will return the \emph{running} component. Open your browser at \texttt{http://127.0.0.1\-:8080} and check if the server is working. The \verb|s-started| record has the \verb|:server| slot filled:
+This expression will return the running component. Open your browser at \texttt{http://127.0.0.1\-:8080} and check if the server responds. The \verb|s-started| record has the \verb|:server| slot filled:
 
 \begin{english}
   \begin{clojure}
@@ -1420,7 +1431,7 @@ Stop the component. Make sure that the page no longer opens and the server slot 
 
 \fi
 
-We went through the full life cycle of the component: preparation, start-up, and shutdown. The transition to each stage gives a new component. In practice, the components are not manually controlled; the system controls them.
+We went through the full life cycle of the component: preparation, start-up, and shutdown. The transition to each stage gives a new component. The \code{s-created}, \code{s-started}, and \code{s-stopped} variables keep the history of component stsates. In practice, the components are not manually controlled; the system controls them. We will know soon how exactly.
 
 \subsection{Constructor}
 
@@ -1450,7 +1461,7 @@ Let's recall how we created the \verb|Server| instance.
 
 \index{slots}
 
-This entry has a drawback: you need to remember which slots are for initialization and which are for internal state. This is not critical for simple records, but, in practice, there are components with ten or more slots. To avoid confusion, declare a \emph{constructor} function.
+This expression has a drawback: you need to remember which slots are for initialization and which are for internal state. This is not critical for simple records, but, in practice, there are components with ten or more slots. To avoid confusion, declare a constructor function.
 
 The constructor takes only arguments needed for the component initialization. In our case, it's \verb|options|, so the function looks like this:
 
@@ -1482,7 +1493,7 @@ The constructor takes only arguments needed for the component initialization. In
 
 \fi
 
-The constructor makes it easier to create the component: it is impossible to pass something superfluous to \verb|map->Server|. A constructor is a function; so you can add documentation and spec to it. An advanced editor will suggest a signature at the place of a call. I recommend you to write a constructor even for trivial components.
+The constructor makes it easier to create the component: it is impossible to pass something superfluous to \verb|map->Server|. A constructor is a function; so you can add documentation and spec to it. An advanced editor will suggest a signature at the place of a call. We recommend you to write a constructor even for trivial components.
 
 \subsection{Slots feature}
 
@@ -1494,11 +1505,7 @@ When the server stops, we do two things: we call the method \verb|(.stop)| and r
   \begin{clojure}
 ;; why this?
 (assoc this :server nil)
-  \end{clojure}
 
-\splitter
-
-  \begin{clojure}
 ;; but not this?
 (dissoc this :server)
   \end{clojure}
@@ -1509,7 +1516,11 @@ When the server stops, we do two things: we call the method \verb|(.stop)| and r
 \begin{english}
 
 \noindent
+\iflarge
+\begin{tabular}{ @{}p{5.5cm} @{}p{5cm} }
+\else
 \begin{tabular}{ @{}p{5cm} @{}p{5cm} }
+\fi
 
   \begin{clojure}
 ;; why this?
@@ -1537,19 +1548,21 @@ The reason is in the way records and slots are arranged. A record retains its un
     (assoc :server nil)
     type)
 ;; book.systems.comp.server.Server
+;; (still a record)
 
 (-> s-stopped
     (dissoc :server)
     type)
 ;; clojure.lang.PersistentArrayMap
+;; (a plain map)
   \end{clojure}
 \end{english}
 
-If a component calls \verb|dissoc| on itself~--- we'll get a map instead of the component at a new stage. This leads to a strange behavior: when you try to stop the component, it will continue to work. Why does it happen?
+If a component calls \verb|dissoc| on itself~--- we'll get a map instead of the component at a new stage. This leads to a strange behavior: if you pass the result of the \code{stop} method in \code{start} again, nothing will happen. Why? To answer this, we dive in some details related to classes in JVM.
 
 When a record is extended by a protocol, it forms a relationship between the class and the implementation. For \verb|Server|, the \verb|start| and \verb|stop| methods do one thing, and for \verb|DB| or \verb|Worker|~--- another.
 
-Finding a method in Clojure works in a class hierarchy similar to catching exceptions \page{exc-hierarchy}. When loaded, Component extends the base \verb|Object| class with the \verb|start| and \verb|stop| methods, which only return \verb|this|. If you take a slot away from a record, it becomes a map. The map does not directly implement \verb|Lifecycle|; therefore, the search will go up the inheritance tree. As a result, it resolves to \verb|Object|, which will return \verb|this| by default.
+Every \code{defmacro} expression declares a separate Java class. Finding a method in Clojure works in a class hierarchy similar to catching exceptions \page{exc-hierarchy}. When loaded, Component extends the base \verb|Object| class with the \verb|start| and \verb|stop| methods, which only return \verb|this|. If you take a slot away from a record, it becomes a map. The map does not directly implement \verb|Lifecycle|; therefore, the search will go up the inheritance tree. As a result, it resolves to \verb|Object|, which will return \verb|this| by default.
 
 Below is an example of a failed component. Its \verb|start| method will return a map with the \verb|server| field:
 
