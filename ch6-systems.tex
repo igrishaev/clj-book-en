@@ -1977,7 +1977,7 @@ COMMIT
 
 \subsection{Worker}
 
-Let's write a worker component. Let's declare the module and dependencies:
+Let's write a background worker component. Let's declare the module and dependencies:
 
 \ifnarrow
 
@@ -2019,7 +2019,7 @@ A worker is a record with \verb|Lifecycle| and \verb|IWorker| protocols. You are
   \end{clojure}
 \end{english}
 
-The record stores four slots: input options, a continue flag, a future with a loop (\verb|task|), and a database. The fourth slot is the dependent component, the \verb|DB| instance we just wrote. Let's implement \verb|Lifecycle|:
+The record stores four slots: input options, an atom with a continuation flag, a future with a loop (\verb|task|), and a database. The fourth slot is the dependent component, the \verb|DB| instance we just wrote. Let's implement \verb|Lifecycle|:
 
 \ifnarrow
 
@@ -2094,8 +2094,9 @@ Let's describe the \verb|IWorker| protocol. You are already familiar with the \v
 
   (task-fn [this]
     (db/with-db-transaction [tx db]
-      (when-let [[request]
-                 (db/query tx query)]
+      (when-let [request
+                  (first
+                    (db/query tx query))]
         ;; get fields
         (let [fields (...))]
           (db/update! tx :requests
@@ -2118,7 +2119,7 @@ Let's describe the \verb|IWorker| protocol. You are already familiar with the \v
 
   (task-fn [this]
     (db/with-db-transaction [tx db]
-      (when-let [[request] (db/query tx query)]
+      (when-let [request (first (db/query tx query))]
         (let [fields (...))] ;; get fields
           (db/update! tx :requests
                       fields ["id = ?" id]))))))
@@ -2128,7 +2129,7 @@ Let's describe the \verb|IWorker| protocol. You are already familiar with the \v
 \fi
 
 \noindent
-Let's add a constructor, and the component will be ready:
+Let's add a constructor, and the component is ready to use:
 
 \index{constructor}
 
