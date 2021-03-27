@@ -1617,11 +1617,24 @@ The server will start without errors, but then a problem awaits us. If we pass t
 
 \fi
 
-An error also crept into the stop method. When stopped, the component will terminate the server but return \verb|nil|. If you pass the result of \verb|stop| to \verb|start|, the latter gets \verb|nil|. This will throw an exception because \verb|nil| does not implement the \verb|Lifecycle| protocol.
+In the last expression, the \code{stop} implementation for \code{Object} will actually work. Let's review its code which obviously does nothing.
+
+\begin{english}
+  \begin{clojure}
+(extend-protocol Lifecycle
+  #?(:clj java.lang.Object :cljs default)
+  (start [this]
+    this)
+  (stop [this]
+    this))
+  \end{clojure}
+\end{english}
+
+An error also crept into the \code{stop} method. When stopped, the component will terminate the server but return \verb|nil|. If you pass the result of \verb|stop| to \verb|start|, the latter gets \verb|nil|. This will throw an exception because \verb|nil| does not implement the \verb|Lifecycle| protocol.
 
 \index{protocols!Lifecycle}
 
-Make sure that the component changes only the values of the slots rather than their structure. Typically, the \verb|start| and \verb|stop| code ends with the \verb|assoc| form, but not \verb|dissoc|. If the condition meets, there should be no problems with the component forwarding by its stages:
+Make sure that the component changes only the values of the slots rather than their structure. Typically, the \verb|start| and \verb|stop| code ends with the \verb|assoc| form, but not \verb|dissoc|. It's easy to check if your component was designed properly. There should be no problems with forwarding it through a set of stages like this:
 
 \begin{english}
   \begin{clojure}
@@ -1636,19 +1649,22 @@ Make sure that the component changes only the values of the slots rather than th
 
 \subsection{Database Component}
 
-Let's write a component to work with a database. It contains the \verb|options| and \verb|db-spec| slots. The former is a map of future pool options, and the latter is an open-pool JDBC spec. You know how it works from the previous sections.
+Let's write a component to work with a database. It contains the \verb|options| and \verb|db-spec| slots. The former is a map of future pool options, and the latter is a JDBC spec with a pool. You know how it works from the previous sections.
 
 \ifnarrow
 
 \begin{english}
   \begin{clojure}
 (defrecord DB [options db-spec]
+
   component/Lifecycle
+
   (start [this]
     (let [pool (cp/make-datasource
                  options)]
       (assoc this :db-spec
         {:datasource pool})))
+
   (stop [this]
     (-> db-spec
         :datasource
@@ -1686,7 +1702,7 @@ Let's add a constructor:
 
 Now the component is ready to start: it can be run through the \verb|make-db|~\arr{} \texttt{component\-/start}~\arr{} \verb|component/stop| functions.
 
-It is not yet clear how to execute a request through this component. We are interested in the \verb|db-spec| slot, which stores the spec. You can isolate it and pass it to the function:
+It is not yet clear how to execute a request through this component. We are interested in the \verb|db-spec| slot, which stores the spec. You can fetch it out from the component and pass to the function:
 
 \ifnarrow
 
@@ -1713,7 +1729,7 @@ It is not yet clear how to execute a request through this component. We are inte
 
 But this is an invalid approach: you must not invade a component, even if the language offers such a possibility. That violates the idea that the component is impartible for the consumer. We can only pull the ``controls'' that the component offers. Now the controls are not there, so let's add them.
 
-Let's expand the \verb|DB| record with methods for working with the database. Let's put them in a separate protocol. Signatures are similar to JDBC functions, with the difference that the first parameter is the \verb|this| component, not a spec:
+Let's expand the \verb|DB| record with methods for working with the database. We will put them in a separate protocol. Signatures are similar to JDBC functions, with the difference that the first parameter is the \verb|this| component, not a spec:
 
 \index{protocols!IDB}
 
