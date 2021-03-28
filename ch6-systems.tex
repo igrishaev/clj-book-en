@@ -3414,17 +3414,17 @@ This concludes the Component overview and moves on to the third library~---
 
 \index{libraries!Integrant}
 
-The \footurl{Integrant}{https://github.com/weavejester/integrant}[Integrant][1mm] library is the next step in the development of the system. It is at the end of the overview for several reasons. Integrant builds on the Component ideas we just discussed. The former is more flexible and generally more advanced. Let's list the main differences.
+The \footurl{Integrant}{https://github.com/weavejester/integrant}[Integrant][1mm] library is the next step in the development of the system. It is at the end of the overview for several reasons. Integrant builds on the Component ideas we just discussed. The former is more flexible and generally more advanced. To know better its features, let's recall what usually confuses us when using Component.
 
 \index{OOP}
 
 Component entities resemble classes and OOP. In Clojure, in the background of data and functions, this looks like a complication. Let a component be a function. It is simpler than an object because only one operation acts on functions~--- a call.
 
-The component has only two states~--- \verb|start| and \verb|stop|. Integrant offers additional stages: pause and resume, spec validation, and parameter preparation. These stages are empty by default, but the component can complement them. With this approach, we have more control over the system.
+The component has only two states~--- \verb|start| and \verb|stop|. Integrant offers additional stages: pause and resume, spec validation, and parameter preparation. These stages are empty by default, but a component can complement them. With this approach, we have more control over the system.
 
 \index{declarativeness}
 
-Integrant is declarative: you can describe the system in a file and consider it as one function. That compares favorably with the Component library, where you build a system manually.
+Integrant is declarative: you can describe the system in a file and build it with one function. That compares favorably with the Component library, where you compose a system manually.
 
 Integrant is tolerant of dependencies. In Component, a dependency requires two steps: adding a slot and metadata, but in Integrant~--- only one. In Component, a dependency can be only another component. Sometimes an object is wrapped in a component just to fulfill this requirement. In Integrant, a dependency can be anything: a dictionary, a future, or a function.
 
@@ -3446,7 +3446,7 @@ Work with Integrant begins with a description of the future system. It is a map 
 
 \index{multimethods!in Integrant}
 
-The system and components are related through multimethods. To add a reaction to an event, we extend the required multimethod with a component key. For example, at startup, the system calls the \verb|init-key| method for each key. To explain to the system how to start the server, the method is needed to extend with the \verb|::server| key.
+The system and components are related through multimethods. To add a reaction to an event, we extend the required multimethod with a component key. For example, at startup, the system calls the \verb|init-key| method for each key. To explain to the system how to start the server, we extend the method with the \verb|::server| key.
 
 Integrant expects at least two methods from the key: start and stop. Since these are the main actions, there is no default response for them. Other events are optional and are up to you.
 
@@ -3502,7 +3502,7 @@ The key is known from the method definition, so the first argument is shadowed w
 
 \fi
 
-The \verb|init| function runs through the configuration and calls \verb|init-key| for each key. We should get a dictionary with the same keys, but the component state will appear in place of the parameters. Let's save the running system to a variable to turn it off later.
+The \verb|init| function runs through the configuration and calls \verb|init-key| for each key. We should get a dictionary with the same keys, but the values will be the states of components. Let's save the running system to a variable to turn it off later.
 
 \index{initialization}
 
@@ -3531,7 +3531,7 @@ The \verb|init| function runs through the configuration and calls \verb|init-key
 
 \fi
 
-The shutdown of the system is called a \verb|halt|. The \verb|halt-key!| method determines how to shut down the component. It takes the key and state from the \verb|init-key| method. Let's describe the halt of the server and database:
+In terms of Integrant, stopping a system is named ``halt''. The \verb|halt-key!| method determines how to shut down the component. It takes the key and state from the \verb|init-key| method. Let's describe the halt of the server and database:
 
 \ifnarrow
 
@@ -3566,7 +3566,7 @@ The shutdown of the system is called a \verb|halt|. The \verb|halt-key!| method 
 \fi
 
 \noindent
-The \verb|halt!| function will halt the entire system. Pass the result of \verb|ig/init| to it.
+The \verb|halt!| function will stop the entire system. Pass the result of \verb|ig/init| to it.
 
 \begin{english}
   \begin{clojure}
@@ -3579,7 +3579,7 @@ The \verb|halt!| function will halt the entire system. Pass the result of \verb|
 \index{dependency graph}
 \index{dependencies!Integrant}
 
-To specify dependencies, a reference is added to the options. At startup, Integrant searches for references in the system and builds a dependency graph. Set the reference with the \verb|ig/ref| function. It takes a key that the component depends on.
+To specify dependencies, we add a reference to the options. At startup, Integrant searches for references in the system and builds a dependency graph. Set the reference with the \verb|ig/ref| function. It takes a key that the component depends on.
 
 Let's consider the dependency on the example of a worker. Add a key to the config, as in the example below. To separate component options from dependencies, put them in the separate \verb|:options| field.
 
@@ -3610,7 +3610,7 @@ When the \verb|init-key| reaches the \verb|::worker| key, \verb|:db| will contai
 
 \subsection{Parallels with Component}
 
-Several techniques we covered in the Component section also work in Integrant. Let's recall some of them.
+Several techniques we covered in the Component section also apply to Integrant. Let's recall some of them.
 
 \index{systems!storage}
 
