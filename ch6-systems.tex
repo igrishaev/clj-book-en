@@ -2851,7 +2851,7 @@ Let's see a case where a database component is required in an HTTP request. How 
 
 \index{systems!forwarding}
 
-\textbf{Forwarding} means passing individual components into a query. The variant has the right to exist because the request is a part of the server, and the server is a component. Based on this, the latter can add fields to the request. To make the database component available to the server, let's include it in dependencies. Let's change the server slots and the constructor:
+\textbf{In the first case}, some components become a part of the HTTP request. The handler still accepts one argument but additionally fetches the database, cache, and other components from it. The variant has the right to exist because the request is a part of the server, and the server is a component. Based on this, the latter can add fields to the request. To make the database component available to the server, we include it in dependencies. Let's change the server slots and the constructor:
 
 \begin{english}
   \begin{clojure}
@@ -2865,7 +2865,7 @@ Let's see a case where a database component is required in an HTTP request. How 
   \end{clojure}
 \end{english}
 
-Let's extend the server \verb|start| method. If earlier we passed \verb|app| directly to \verb|run-jetty|, now we will add a new step. The \texttt{make\--hand\-ler} function wraps \verb|app| so that every query in \verb|app| is supplemented with a database.
+Let's extend the server \verb|start| method. If earlier we passed \verb|app| directly to \verb|run-jetty|, now we will add a new step. The \texttt{make\--hand\-ler} function wraps \verb|app| so that every request in \verb|app| is supplemented with a database.
 
 \ifnarrow
 
@@ -2904,7 +2904,7 @@ Let's extend the server \verb|start| method. If earlier we passed \verb|app| dir
 
 \fi
 
-Let the home page display data from the database. The code below shows how to read a table from an HTTP request. In order not to complicate the example with HTML layout, let's return pretty printed data.
+Let the home page display data from the database. The code below shows how to read a table from an HTTP request. In order not to complicate the example with HTML layout, let's return just pretty printed data.
 
 \ifnarrow
 
@@ -2938,11 +2938,11 @@ Over time, we will need other components, such as a task queue or cache. Let's d
 
 \index{systems!subset}
 
-When there are too many components, it is inconvenient to store them at the top level of the request~--- there is a risk of keys conflicting. Let's put them in the nested \verb|:system| map. Note: there is not the entire system in \verb|:system|, but the minimum subset required by the web part.
+When there are too many components, it is inconvenient to store them at the top level of the request~--- there is a risk of keys conflicting. Let's put them in the nested \verb|:system| map. But pay attention: there is not the entire system in \verb|:system|, but the minimum subset required by the web part.
 
 \index{systems!closure}
 
-The \textbf{closure} approach changes the route tree. It is no longer static but comes from a builder function. The function takes the components that the handlers need. Internally, we call them with a request and dependencies. This changes the function's signature: now the handler can have several arguments (request, base, cache).
+\textbf{The second approach} changes the route tree. It is no longer static but comes from a builder function. The function takes the components that the handlers need. Internally, we call them with a request and dependencies. This changes the function's signature: now the handler can have several arguments (request, base, cache). Let's see, by example, how to build such a system.
 
 To simplify the closure, a grouping component is introduced into the system. It does nothing on startup and shutdown but only accumulates dependencies. The server depends on the grouping component. Based on it, the server builds a route tree, where each handler takes a component as its first argument.
 
@@ -3105,7 +3105,7 @@ Let's take a look at the \verb|page-index| handler that accesses the database. I
 
 \fi
 
-Forwarding and closure solve the same problem. The difference is in passing arguments to a function. Forwarding is convenient because the handler usually takes one argument, and you don't have to change the signature.
+Both methods~--- passing components in a request or routes~--- solve the same problem. The difference is in passing arguments to a handler. Passing components through a request map is convenient because the handler usually takes one argument, and you don't have to change the signature.
 
 On the other hand, passing components in a request isn't always obvious. When a request has many fields, it can be difficult to work with it in testing and development. When printing a request or in logs, you will get too much output. The variant with closure and two arguments is clearer. The signature directly tells what data is expected at the input. The choice of method depends on team conventions.
 
@@ -3143,11 +3143,11 @@ Until now, we have written components so that re-running them would lead to an e
 
 \fi
 
-In the \verb|start| body, we don't check if the server is already running. If we try to start it again, we'll get an error: the port is busy. That's right: we wouldn't want two servers running. There may not be exceptions for other components. If we restart the database, we'll get a new connection pool. The old one will remain in memory and will work. As a result, resources are wasted.
+In the \verb|start| body, we don't check if the server is already running. If we try to start it again, we'll get an exception: the port is busy. That's right: we wouldn't want two servers running. There may not be exceptions for other components. If we restart the database, we'll get a new connection pool. The old one will remain in memory and will work. As a result, resources are wasted.
 
 \index{idempotence}
 
-\emph{Idempotence} is property when a repeated operation returns the same result. A component has to follow it to avoid resource leaks. To do this, we check the slot before opening the resource. If the slot is \verb|nil|, we create a new server and write to the slot. Otherwise, the server is already running and \verb|this| is returned.
+Idempotence is property when a repeated operation returns the same result. A component has to follow it to avoid resource leaks. To do this, we check the slot before opening the resource. If the slot is \verb|nil|, we create a new server and attach it to the slot. Otherwise, the server is already running and \verb|this| is returned.
 
 \ifnarrow
 
@@ -3176,7 +3176,6 @@ In the \verb|start| body, we don't check if the server is already running. If we
 
 \fi
 
-\noindent
 \verb|Stop| works similarly: before stopping the resource, the slot is checked for emptiness:
 
 \begin{english}
@@ -3188,7 +3187,7 @@ In the \verb|start| body, we don't check if the server is already running. If we
   \end{clojure}
 \end{english}
 
-The variant with the \verb|or| macros is slightly shorter. We always write the slot, but the value is either the current server or the new one.
+The variant with the \verb|or| macros is slightly shorter. We always update the slot, but the value is either the current server or the new one.
 
 \ifnarrow
 
@@ -3227,9 +3226,33 @@ Throughout this chapter, we have described components with records (typed maps).
 
 In fact, the thesis that method lookup works by class is incomplete. If the \verb|:extend-via-metadata| property is set for the protocol, then Clojure looks for the implementation in the object's metadata.
 
-Suppose you have declared an \verb|API| protocol in the \verb|project.api| namespace with this property and the \verb|get-user| method. The method expects the first argument to be an object that implements this protocol. However, it is acceptable to pass another one instead, which has the \verb|project.api/get-user| symbol with a function in its metadata. In this case, the method is resolved to the function from the metadata.
+Suppose you have declared an \verb|API| protocol in the \verb|project.api| namespace with this property and the \verb|get-user| method:
 
-The \verb|Lifecycle| protocol has the required flag set to true. The idea is to generate an object that has implementations of Component methods in its metadata. A map is suitable for the role of the object because the library adds dependencies through \verb|assoc|.
+\begin{english}
+  \begin{clojure}
+(defprotocol API
+  :extend-via-metadata true
+  (get-user [this id]))
+  \end{clojure}
+\end{english}
+
+The method expects the first argument to be an object that implements this protocol. However, it is acceptable to pass another one instead, which has the \verb|project.api/get-user| symbol with a function in its metadata. In this case, the method is resolved to the function from the metadata.
+
+\begin{english}
+  \begin{clojure}
+(def api
+  ^{`get-user
+    (fn [this id]
+      {:id id
+       :name (format "User %s" id)})}
+  {:any "map"})
+
+(get-user api 5)
+;; {:id 5, :name "User 5"}
+  \end{clojure}
+\end{english}
+
+The \verb|Lifecycle| protocol has the required flag set to true. The idea is to generate an object that has implementations of \code{start} and \code{stop} methods in its metadata. A map is suitable for the role of the object because the library adds dependencies through \verb|assoc|.
 
 Let's describe the server component in a new way. It consists of three functions: a constructor, \verb|start|, and \verb|stop|. The constructor takes server parameters and wraps them in a map. The \verb|with-meta| function adds metadata to the component. Metadata keys are fully qualified symbols that point at the \verb|Lifecycle| protocol methods. The keys will contain so far unknown start and stop functions:
 
@@ -3259,7 +3282,7 @@ Let's describe the server component in a new way. It consists of three functions
 
 \fi
 
-Let's write the starting of the component. The \verb|start| function takes the map we returned to \verb|init|. For convenience, let's call it \verb|this| and unpack the options at the signature level. Let's start the server and add it to the current map.
+Let's write the starting of the component. The \verb|start| function takes the map we returned from \verb|init|. For convenience, let's call it \verb|this| and unpack the options at the signature level. Then we start the server and add it to the current map.
 
 \begin{english}
   \begin{clojure}
@@ -3342,7 +3365,7 @@ The \verb|start| and \verb|stop| methods only need to unpack them at the signatu
 
 \fi
 
-Let's examine the metadata of the component after \verb|init| to make sure it has everything we need:
+Let's examine the metadata of the component after \verb|init| to make sure it has everything we need. For debugging such components, the \verb|*print-meta*| variable, which we talked about in the last chapter \page{print-meta}, is useful.
 
 \ifnarrow
 
@@ -3381,12 +3404,11 @@ Let's examine the metadata of the component after \verb|init| to make sure it ha
 \index{printing!metadata}
 \index{clojure.core!*print-meta*}
 
-\noindent
-For debugging such components, the \verb|*print-meta*| variable, which we talked about in the last chapter \page{print-meta}, is useful.
+The alternative method does not override what we said earlier in this chapter. As with \verb|defrecord|, the component must follow the practices we've covered. For example, we must have made our start and stop methods being idempotent but didn't do that to keep the code short.
 
-The alternative method does not override what we said earlier in this chapter. As with \verb|defrecord|, the component must follow the practices we've covered. Even if you like the new recording more, do not rush to switch to it. First, understand the classic components as the library recommends.
+In this section, we have learned an extended technique. Even if you like the new type of components more, do not rush to switch to it. First, understand the classic approach as the library recommends.
 
-This concludes the Component overview and moves on to the third library~--- Integrant.
+This concludes the Component overview and moves on to the third library~---
 
 \section{Integrant}
 
