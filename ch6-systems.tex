@@ -61,6 +61,8 @@ We deliberately arranged the libraries in this order. Mount is the simplest of t
 
 Our system is similar to what you might come across in practice. It consists of a web server, a database, and a worker (a background task that updates records in the database). We added the worker specifically to help you learn how to work with dependencies. To better understand the system, let's draw its topology \fig{fig:chart-system}.
 
+\label{demo-system}
+
 \begin{figure}[ht!]
   \chart{chart-sys-1}
   \caption{Diagram of a future system with dependencies}
@@ -2147,7 +2149,7 @@ Let's add a constructor, and the component is ready to use:
 
 The worker differs from other components in dependencies. It is not yet clear how it knows about the database because the constructor accepts only options. The system solves this problem rather than a programmer. We should not pass components to each other when creating.
 
-But for educational purposes, we \emph{will break} this rule and assemble the mini-system manually. This way helps us better understand how it works and test the code. Let's run an experiment in the \verb|core| module with two components. Add constructors to the module:
+But for educational purposes, we will break this rule and assemble the mini-system manually. This way helps us better understand how it works and test the code. Let's run an experiment in the \verb|core| module with two components. Add constructors to the module:
 
 \ifnarrow
 
@@ -2179,21 +2181,24 @@ But for educational purposes, we \emph{will break} this rule and assemble the mi
 \fi
 
 Take a look at the system below. It is a function that takes a config. We manually start the database and worker and return the component map. In the tenth line, we set the slot with the database for the worker.
-Pay attention when to do it~--- the database component \emph{has already been enabled}, but the worker hasn't yet (because \verb|assoc| comes before \verb|start|).
+Pay attention when to do it~--- the database component has already been enabled, but the worker hasn't yet (because \verb|assoc| comes before \verb|start|).
 
 \begin{english}
   \begin{clojure/lines}
 (defn my-system-start
   [config]
-  (let [{db-opt :pool
-         worker-opt :worker} config
-        db (-> db-opt
+  (let [{opt-db :pool
+         opt-worker :worker} config
+
+        db (-> opt-db
                make-db
                component/start)
-        worker (-> worker-opt
+
+        worker (-> opt-worker
                    make-worker
                    (assoc :db db)
                    component/start)]
+
     {:db db :worker worker}))
   \end{clojure/lines}
 \end{english}
@@ -2234,7 +2239,7 @@ Test the system: add records to the \verb|requests| table and make sure that the
   \end{clojure}
 \end{english}
 
-\subsection{High-performance System}
+\subsection{System in Production}
 
 \index{systems}
 
@@ -2242,13 +2247,13 @@ Let's consider how a system is built in practice. The \verb|system-map| function
 
 \index{functions!system-map}
 
-When building the system, there should be no side effects. Constructors only create records. If a constructor is accessing a disk or changing state, this is a blunder.
+When building the system, there should be no side effects. Constructors only create records. If a constructor is accessing a disk or changing state, this is a blunder in your design.
 
 The system depends on the config, so assembling is moved to the \verb|make-system| function. It takes a config map and divides it into parts. Each constructor takes its part. It is convenient when the config structure repeats the system with the component keys are at the top level, and option maps are below them.
 
 To pass dependencies to the component, it is wrapped in the \verb|component/using| function. The second argument is the keys of the components, which it should receive before starting. The key can be a vector or a map. If the slot and component names match, it is a vector. If they differ, pass the map of the form \verb|{:slot :component}|.
 
-Below, the \verb|make-system| function builds the system we agreed on at the beginning of the chapter. The \verb|worker| component is wrapped in \verb|component/using|. We passed the \verb|[:db]| vector because this is the name of both the worker slot and the system component.
+Below, the \verb|make-system| function builds the system we agreed on at the beginning of the chapter \page{demo-system}. The \verb|worker| component is wrapped in \verb|component/using|. We passed the \verb|[:db]| vector because this is the name of both the worker slot and the system component.
 
 \ifnarrow
 
@@ -2363,7 +2368,9 @@ Like a component, the system flows freely through the \verb|start| and \verb|sto
 
 Above, we set the system using \verb|def|, which is not entirely correct. The system is an entity that we turn on on-demand. Treat it like a global variable that changes its value. \verb|Alter-var-root| is good for that.
 
-A future system variable is declared in the module. The \verb|defonce| macro, which is executed strictly once, does this. Thanks to this, we will not lose the old system when reloading the module. Like a component, the system is in one of three states: rest, start, and stop. The \verb|system-init|, \verb|system-start|, and \verb|system-stop| functions bring the system to the required state. They work using the service \verb|alter-system|, which we specified using \verb|partial| for shortness.
+A future system variable is declared in the module. The \verb|defonce| macro, which is executed strictly once, does this. Thanks to this, we will not lose the old system when reloading the module.
+
+Like a component, the system is in one of three states: rest, start, and stop. The \verb|system-init|, \verb|system-start|, and \verb|system-stop| functions bring the system to the required state. They work using the service \verb|alter-system|, which we specified using \verb|partial| for shortness.
 
 \index{clojure.core!alter-var-root}
 
@@ -2450,19 +2457,16 @@ The system is global, but we cannot access it directly. If a component is lookin
   \end{clojure}
 \end{english}
 
-Of course, you can also get to the private system with \verb|resolve| and a fully qualified symbol. This is an advanced technique that no variable can resist. But \verb|resolve| stands out, and trouble is easier to spot.
+Of course, you can also get to the private system with \verb|resolve| and a fully qualified symbol. This is an advanced technique that no variable can resist. But \verb|resolve| stands out, and the trick is easier to spot.
 
 \subsection{Correct Completion}
 
 \index{systems!completion}
-
-The global system goes against what the library author writes: ``In production, the system map is ephemeral. It is used to start all the components running, then it is discarded.''
-
 \index{graceful shutdown}
 
-Let us disagree with the author. Practice shows that a reference to the system is also useful in production. Without the reference, a graceful application shutdown is impossible. Gracefulness means that all resources are closed.
+Now let's spend some time on how to stop a system correctly. This problem is also known as ``graceful shutdown''. By correctness, we mean that all resources~--- files, connections, and transactions,~--- have been closed with no failures.
 
-During running, some components cannot stop at an arbitrary moment. These include task queues, data channels, and transactions. If a queue ends abnormally, we either lose the message or process it twice. Close resources properly, even if you have to wait for them.
+The problem is, when running, some components cannot stop at an arbitrary moment. For example, if a queue ends abnormally, we either lose the message or process it twice. Close resources properly, even if you have to wait for them.
 
 \index{POSIX}
 \index{signals!SIGTERM}
@@ -2471,7 +2475,7 @@ In production mode, the application listens for POSIX signals and responds to th
 
 \index{libraries!Signal}
 
-The \footurl{Signal}{https://github.com/pyr/signal}[Signal][1mm] library provides a macro to associate a signal with a reaction to it. Include the library in the project:
+The \footurl{Signal}{https://github.com/pyr/signal}[Signal][1mm] library provides a macro to associate a signal with a reaction to it. Add the library to the project:
 
 \ifnarrow
 
@@ -2505,6 +2509,8 @@ The \footurl{Signal}{https://github.com/pyr/signal}[Signal][1mm] library provide
 
 Extend the \verb|-main| function. After the system starts, add an event to the SIGTERM and SIGHUP signals. The former stops the system and ends the program. We regard the latter as a system reboot.
 
+\index{signals!SIGHUP}
+
 \begin{english}
   \begin{clojure}
 (with-handler :term
@@ -2512,13 +2518,7 @@ Extend the \verb|-main| function. After the system starts, add an event to the S
   (system-stop)
   (log/info "all components shut down")
   (System/exit)
-  \end{clojure}
-\end{english}
 
-\index{signals!SIGHUP}
-
-\begin{english}
-  \begin{clojure}
 (with-handler :hup
   (log/info "caught SIGHUP, reloading")
   (system-stop)
@@ -2538,7 +2538,21 @@ $ java -jar target/book-standalone.jar
 
 Press \verb|Ctrl+C|. The application will not end immediately, and you will see a message that all components have stopped.
 
-Process control programs usually wait 30 seconds for a process to stop. Otherwise, it is terminated forcibly. The system wait should be within reasonable limits. If it goes beyond 30 seconds, you need to find and improve the problematic component.
+Process control programs like systemd or Kubernetes usually wait 30 seconds for a process to stop. Otherwise, it is terminated forcibly. The system wait should be within reasonable limits. If it goes beyond 30 seconds, you need to find and improve the problematic component.
+
+A simple way to find such a component is to add debug log into the \code{stop} method:
+
+\begin{english}
+  \begin{clojure}
+(stop [this]
+  (log/debug "Stopping the web-server...")
+  (.stop server)
+  (log/debug "The web-server has been stopped.")
+  (assoc this :server nil))
+  \end{clojure}
+\end{english}
+
+The time window between log entries will show which component slows down the system.
 
 \subsection{More about Waiting}
 
@@ -2634,9 +2648,9 @@ Such an approach requires the component names to match the slot ones. If these a
 
 \index{metadata!in Component}
 
-Now let's look at how dependencies work. As you might guess, the \verb|component/using| call passes something to the component, but the latter doesn't change. It has no \verb|:deps| field or hidden atom. The component stores dependencies in \emph{metadata}.
+Now let's look at how dependencies work. As you might guess, the \verb|component/using| call passes something to the component, but the latter doesn't change. It has no \verb|:deps| field or hidden atom. The component stores dependencies in metadata.
 
-Metadata is a map of additional information about an object. Metadata works with collections and some Clojure types (symbol, keyword, \verb|Var|). Metadata is used to supplement an object without changing it. Component dependencies are in line with this concept.
+Metadata is a map of additional information about an object. Metadata works with collections and some Clojure types (symbols, vars). Metadata is used to supplement an object without changing it. Component dependencies are in line with this concept.
 
 The \verb|meta| function returns the object's metadata. The code below proves that the constructor added dependencies:
 
@@ -2731,13 +2745,13 @@ We do not group slots here because, otherwise, the code will take up a lot of sp
 
 \index{feature flags}
 
-In the chapter on config, I wrote about \emph{feature flags} \page{feature-flags}. They are parameters that enable layers of logic. With flags, there is no need for a new build of the application. It is enough to change the configuration and restart the service.
+In the chapter on config, we told you about feature flags \page{feature-flags}. They are parameters that enable layers of logic. With flags, there is no need for a new build of the application. It is enough to change the configuration and restart the service.
 
-Sometimes a system is not built linearly, but according to conditions. Let's say the worker is still in test mode. Let's add a field with the semantics ``run worker'' to the configuration. If the field is false, the system will start without this component.
+Sometimes a system is not built linearly, but according to conditions. Let's say the worker is still in test mode and works only on certain machines. Let's add a field with the semantics ``run worker'' to the configuration. If the field is false, the system will start without this component.
 
 \index{features}
 
-Let's select the \verb|:features| group in the configuration for the features flags:
+Let's add the \verb|:features| group to the configuration for the features flags:
 
 \begin{english}
   \begin{clojure}
@@ -2747,25 +2761,30 @@ Let's select the \verb|:features| group in the configuration for the features fl
   \end{clojure}
 \end{english}
 
-Let's rewrite the \verb|make-system| function with flags. Before getting into \verb|system-map|, the components are selected. Let's select the essential components that always work and gradually add them.
+Now rewrite the \verb|make-system| function with flags. Before getting into \verb|system-map|, the components are selected. Let's select the essential components that always work and gradually add optional ones.
 
-The \verb|cond->| macro passes the vector through the chain of conditions and forms. If the \verb|worker?| condition is true, the following form will add the \verb|:worker| and \verb| (make-worker {...})| values to the vector. Other flags and expressions may appear below.
+The \verb|cond->| macro passes the vector through the chain of conditions and forms. If the \verb|worker?| condition is true, the following form will add the worker's key and its instance to the vector. Other flags and expressions may appear below.
 
 \ifnarrow
 
 \begin{english}
   \begin{clojure}
 (defn make-system [config]
-  (let [{:keys [features jetty
-                pool worker]} config
+  (let [{:keys [features
+                jetty
+                pool
+                worker]} config
         {:keys [worker?]} features
-        comps-base [:server
-                    (make-server jetty)
-                    :db (make-db pool)]
+
+        comps-base
+        [:server (make-server jetty)
+         :db     (make-db pool)]
+
         comps (cond-> comps-base
                 worker?
                 (conj :worker
                   (make-worker worker)))]
+
     (apply component/system-map comps)))
   \end{clojure}
 \end{english}
@@ -2796,11 +2815,11 @@ Let's make sure the flag works. Since a system is a record, so the \verb|keys| f
   \begin{clojure}
 (keys (make-system
         {:features {:worker? false}}))
-(:server :db)
+;; (:server :db)
 
 (keys (make-system
         {:features {:worker? true}}))
-(:server :db :worker)
+;; (:server :db :worker)
   \end{clojure}
 \end{english}
 
@@ -2809,10 +2828,10 @@ Let's make sure the flag works. Since a system is a record, so the \verb|keys| f
 \begin{english}
   \begin{clojure}
 (keys (make-system {:features {:worker? false}}))
-(:server :db)
+;; (:server :db)
 
 (keys (make-system {:features {:worker? true}}))
-(:server :db :worker)
+;; (:server :db :worker)
   \end{clojure}
 \end{english}
 
