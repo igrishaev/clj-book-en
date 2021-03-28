@@ -2837,17 +2837,17 @@ Let's make sure the flag works. Since a system is a record, so the \verb|keys| f
 
 \fi
 
-Flags make it easier to work with the project. Some components are complex and require special environments. If you can set them with a flag, it will benefit the whole team.
+Flags make it easier to work with the project. Some components are complex and require special environments, so it's hard to run them locally. If you can set them with a flag, it will benefit the whole team.
 
-\subsection{System Descent}
+\subsection{Sharing Components}
 
 \index{systems!descent}
 
-Within the system, the components communicate freely with each other. If one of them needs the other, we'll add a dependency and a slot. The problem arises when another entity rather than a component accesses the system.
+Within a system, components communicate freely with each other. If one of them needs the other, we'll add a dependency and a slot. The problem arises when another entity rather than a component accesses the system.
 
-That mainly happens when an HTTP request handler needs individual components \page{first-handler}. A function does not fit well with the component ideas: the latter stores state, and the former avoids it. Starting and stopping the functions is meaningless. Component and function are opposite to each other.
+That mainly happens when an HTTP request handler needs individual components \page{first-handler}. At first glance, it's not obvious how to bind a handler to a system. A function does not fit well with the component ideas: the latter stores state, and the former avoids it. Starting and stopping the functions is meaningless. In general, a component and a function are opposite to each other.
 
-Let's see a case where a database component is required in a query. How can you descend part of the system into a function without violating the principle of the library? We are not considering using a global variable because, in this case, it is surrender. Two methods will help~--- forwarding and closure.
+Let's see a case where a database component is required in an HTTP request. How can you pass a part of the system into a function without violating the principle of the library? We are not considering using a global variable because, in this case, it is surrender. Two methods will help~--- plugging in components to a request and routes.
 
 \index{systems!forwarding}
 
