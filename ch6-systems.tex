@@ -2477,6 +2477,8 @@ In production mode, the application listens for POSIX signals and responds to th
 
 The \footurl{Signal}{https://github.com/pyr/signal}[Signal][1mm] library provides a macro to associate a signal with a reaction to it. Add the library to the project:
 
+\label{with-handler}
+
 \ifnarrow
 
 \begin{english}
@@ -3656,7 +3658,7 @@ As with Component, the system must be private. Free access to it is unacceptable
 
 \index{systems!waiting}
 
-\textbf{Waiting and signals}: An application waits for all components to stop before exiting. The \verb|with-handler| macro and signal interception work in the same way for Integrant:
+\textbf{Waiting and signals}: An application waits for all components to stop before exiting. The \verb|with-handler| macro and signal interception work in the same way for Integrant \page{with-handler}:
 
 \begin{english}
   \begin{clojure}
@@ -3670,7 +3672,7 @@ As with Component, the system must be private. Free access to it is unacceptable
 
 \index{systems!descent}
 
-\textbf{Descent system and routes}: In Integrant, it is easier to access the system from an HTTP request. The handler can be a database-dependent component. Let the page display the number of records in the database. Let's add a new key and a reference to the database to the system:
+\textbf{Sharing components}: In Integrant, it is easier to access the system from an HTTP request. The handler can be a database-dependent component. Let the page display the number of records in the database. Let's add a new key and a reference to the database to the system:
 
 \begin{english}
   \begin{clojure}
