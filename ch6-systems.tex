@@ -3672,7 +3672,7 @@ As with Component, the system must be private. Free access to it is unacceptable
 
 \index{systems!descent}
 
-\textbf{Sharing components}: In Integrant, it is easier to access the system from an HTTP request. The handler can be a database-dependent component. Let the page display the number of records in the database. Let's add a new key and a reference to the database to the system:
+\textbf{Sharing components}: In Integrant, it is easier to access the system from an HTTP request. The handler can be a database-dependent component. Let's add a key of a handler with a reference to \code{::db}:
 
 \begin{english}
   \begin{clojure}
@@ -3680,8 +3680,7 @@ As with Component, the system must be private. Free access to it is unacceptable
   \end{clojure}
 \end{english}
 
-\noindent
-In the run of the key, we return the request handler closed in \verb|db|:
+Let the page display the number of records in the database. In the run of the key, we return a function closed over \verb|db|:
 
 \ifnarrow
 
@@ -3718,8 +3717,7 @@ In the run of the key, we return the request handler closed in \verb|db|:
 
 \fi
 
-\noindent
-Let's modify the server so that it depends on the handler:
+Let's modify the server so that it depends on the handler. When starting the server, we pass the handler to \code{run-jetty}:
 
 \ifnarrow
 
@@ -3750,7 +3748,7 @@ Let's modify the server so that it depends on the handler:
 
 \fi
 
-The browser will show the phrase ``You've got N records,'' where \verb|N| is the number of the database records. As with Clojure, \verb|::handler| can return both a single page and a route tree, using Compojure.
+As with Component, \verb|::handler| can return both a single page and a route tree, using Compojure.
 
 \index{systems!conditional}
 
@@ -3801,7 +3799,7 @@ Another way to start a subset of the system is similar to Mount \page{mount-sele
 
 Specify for components fully qualified keys (e.g., \verb|::server|, \verb|::db|). The double colon stands for the current namespace in which the key is declared. The \verb|::db| notation is a shorthand for \verb|:book.integrant/db|.
 
-When a key is fully qualified (with a namespace), it is easy to understand in which module it is declared. There are more than ten components in systems. Let's say there is a problem with the \verb|:queue| key. How to understand which module it is in? Whereas the \texttt{:my-project.utils.queue\-/queue} key contains this information. I recommend you always use fully qualified keys.
+When a key is fully qualified (with a namespace), it is easy to understand in which module it is declared. Real systems consist of more than ten components and more. Let's say there is a problem with the \verb|:queue| key. How to understand which module it is in? Whereas the \texttt{:my-project.queue/task} key contains this information. We recommend you always use fully qualified keys.
 
 A situation may arise that you forgot to import the module in which you extended the multimethod. If the module is not loaded, Integrant will not know about the component. Sometimes you are left completely confused: you remember that you wrote the code; however, there is no component. We've discussed a similar problem in Mount \page{mount-main}. To avoid an error, add all modules with components to the header of the main module, which is always loaded. Let it be the system module.
 
@@ -3811,16 +3809,16 @@ A situation may arise that you forgot to import the module in which you extended
   (:require project.db
             project.server
             project.worker
-            project.utils.queue))
+            project.queue))
   \end{clojure}
 \end{english}
 
-Syntax checking utilities (linters) may generate a warning. In their terms, you've added a module, but you are not using it because there is no \verb|project.db/<something>| expression in your code. To suppress such warnings, correct linter settings. Add \verb|project.db| into the known namespaces section or similar.
+Syntax checking utilities (linters) may generate a warning. In their terms, you've added a module, but you are not using it because there is no \verb|project.db/<something>| expression in your code. To suppress such warnings, correct linter settings. Add \verb|project.db| into the ``known namespaces'' section or similar.
 
 \index{namespaces}
 
 
-Integrant offers the \verb|load-namespaces| function to load modules automatically. The system configuration is fed to its input. For each key, the function looks for its space and loads it. A high-performance system with keys from different modules looks like this:
+Integrant offers the \verb|load-namespaces| function to load modules automatically. It accepts the configuration of the system. For each key, the function looks for its namespace and loads it. Below, there is a real system which keys come from different modules:
 
 \ifnarrow
 
@@ -3874,11 +3872,11 @@ We recommend beginners to refrain from automatic imports. Add them explicitly to
 
 \index{declarativeness}
 
-Integrant encourages a declarative approach. System configuration is a static dictionary. For space-saving, the system is taken to the EDN resource and read at the start of the application.
+Integrant encourages a declarative approach, because a system configuration is a static dictionary. For space-saving, the system is taken to the EDN resource and read at the start of the application.
 
 \index{tags!Integrant}
 
-You might notice that we have specified references with the \verb|ig/ref| function, and it is not entirely clear how to express them in the file. The \verb|#ig/ref| tag works like the function of the same name.
+You might notice that we have specified references with the \verb|ig/ref| function, and it is not entirely clear how to express them in the file. Integrant extends Clojure reader with the \verb|#ig/ref| tag which acts like the function of the same name.
 
 \ifnarrow
 
@@ -3903,8 +3901,7 @@ You might notice that we have specified references with the \verb|ig/ref| functi
 
 \index{modules!clojure.edn}
 
-
-Integrant offers its \verb|read-string| version for a reading of EDN. It is a wrapper over the usual \verb|clojure.edn/read-string|, but with tags from the \verb|#ig/| family. To read the system from a file, do the following:
+Integrant offers its own version of \verb|read-string| for reading EDN. It is a wrapper over the usual \verb|clojure.edn/read-string| with tags from the \verb|#ig/| family. To read the system from a file, do the following:
 
 \begin{english}
   \begin{clojure}
@@ -3915,9 +3912,9 @@ Integrant offers its \verb|read-string| version for a reading of EDN. It is a wr
 
 \index{variables!environment}
 
-From the configuration chapter, we remember that it is undesirable to store passwords and access keys in a file \page{password-note}. The \verb|project.db/db| component violates this principle: the password for the database is written publicly. Let's make the parser read the password from the environment.
+From the configuration chapter, we remember that it is undesirable to store passwords and access keys in a file \page{password-note}. The \verb|project.db/db| component violates this principle: the password for the database is written publicly. Let's make the parser read the password from the environment. For this, we will reuse our previous work for configuration and END \page{tag-env}.
 
-We'll put the configuration into the \texttt{integrant\-.test.edn} file (snippet):
+Let's put the settings into the \texttt{integrant\-.test.edn} file (snippet):
 
 \ifnarrow
 
