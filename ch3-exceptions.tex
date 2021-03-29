@@ -1383,12 +1383,8 @@ Now that you are familiar with Sentry, let's write a protective decorator for a 
       (handler request)
 \end{clojure/lines*}
 
-\wavebottom
-
 Please note that the request to Sentry is also wrapped in \verb|try/catch|. Since Sentry is a third-party service, it may be unavailable at times. In this case, both exceptions are logged: the primary one and the one related to Sentry.
 If you need to brush up on how middleware and decorators work, go back to the chapter on web development \page{decorator}.
-
-\wavetop
 
 \ifx\DEVICETYPE\MOBILE
 
@@ -1418,11 +1414,7 @@ If you need to brush up on how middleware and decorators work, go back to the ch
 
 \fi
 
-\wavebottom
-
 For the sake of completeness, we are passing to Sentry not just an exception, but an event \coderef{9}. We add an exception, a Ring request, and arbitrary data to it. The \verb|(r/add-<something>)| functions supplement the event with various fields. Raven offers functions to add tags, users and other entities.
-
-\wavetop
 
 \ifx\DEVICETYPE\MOBILE
 
