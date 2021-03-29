@@ -2946,52 +2946,10 @@ When there are too many components, it is inconvenient to store them at the top 
 
 \textbf{The second approach} changes the route tree. It is no longer static but comes from a builder function. The function takes the components that the handlers need. Internally, we call them with a request and dependencies. This changes the function's signature: now the handler can have several arguments (request, base, cache). Let's see, by example, how to build such a system.
 
-To simplify the closure, a grouping component is introduced into the system. It does nothing on startup and shutdown but only accumulates dependencies. The server depends on the grouping component. Based on it, the server builds a route tree, where each handler takes a component as its first argument.
-
-Let's introduce the grouping \verb|:web| component. So far, it only depends on the database, but in the future, it will require something else:
-
-\begin{english}
-  \begin{clojure}
-(defrecord Web [db])
-
-(defn make-web []
-  (-> (map->Web {})
-      (component/using [:db])))
-  \end{clojure}
-\end{english}
-
-\noindent
-Let's include it to the system:
-
-\begin{english}
-  \begin{clojure}
-(component/system-map
- :web    (make-web)
- :server (make-server jetty)
- :db     (make-db pool)
- :worker (make-worker worker))
-  \end{clojure}
-\end{english}
-
-\index{components!grouping}
-
-Let's fix the server dependency: now it's not a database, but the grouping \verb|web| component:
-
-\begin{english}
-  \begin{clojure}
-(defrecord Server
-  [options server web])
-
-(defn make-server [options]
-  (-> (map->Server {:options options})
-      (component/using [:web])))
-  \end{clojure}
-\end{english}
-
 \index{macros!defroutes}
 \index{libraries!Compojure}
 
-Let's remember how we built routes. The \verb|defroutes| macro returns a function that accepts a request and returns a response \page{compojure}.
+Recall how we built HTTP routes. The macros \code{defroutes} makes a function which accepts a request and returns a response \page{compojure}.
 
 \ifnarrow
 
@@ -3019,43 +2977,28 @@ Let's remember how we built routes. The \verb|defroutes| macro returns a functio
 
 \fi
 
-The new route tree is not static because it depends on the component. The \verb|make-routes| function takes a grouping component and returns the routes that are enclosed within it. The \verb|page-index| function and others get two arguments: a component and a request. The component will be in the same state as it was passed in \verb|make-routes|:
-
-\ifnarrow
+The new route tree is not static anymore as it depends on components. Let's assume the web pages require a database and a mail server. The function \code{make-routes} accepts the \code{db} and \code{smtp} arguments and makes routes closed over them. The functions \code{page-user} and \code{page-feedback} take two arguments: a request and a component.
 
 \begin{english}
   \begin{clojure}
-(defn make-routes [web]
+(defn make-routes [db smtp]
   (routes
-    (GET "/"
-      request (page-index web request))
-    (GET "/hello"
-      request (page-hello web request))))
+   (GET "/users" request
+      (page-users request db))
+   (POST "/feedback" request
+      (page-feedback request smtp))))
   \end{clojure}
 \end{english}
-
-\else
-
-\begin{english}
-  \begin{clojure}
-(defn make-routes [web]
-  (routes
-   (GET "/"      request (page-index web request))
-   (GET "/hello" request (page-hello web request))))
-  \end{clojure}
-\end{english}
-
-\fi
 
 \noindent
-The \verb|start| method of the server builds routes and passes them to \verb|run-jetty|:
+The \code{start} method builds the routes and pass them into \code{run-jetty}:
 
 \ifnarrow
 
 \begin{english}
   \begin{clojure}
 (start [this]
-  (let [routes (make-routes web)
+  (let [routes (make-routes db smtp)
         server (run-jetty
                  routes options)]
     (assoc this :server server)))
@@ -3067,7 +3010,7 @@ The \verb|start| method of the server builds routes and passes them to \verb|run
 \begin{english}
   \begin{clojure}
 (start [this]
-  (let [routes (make-routes web)
+  (let [routes (make-routes db smtp)
         server (run-jetty routes options)]
     (assoc this :server server)))
   \end{clojure}
@@ -3075,20 +3018,34 @@ The \verb|start| method of the server builds routes and passes them to \verb|run
 
 \fi
 
-Let's take a look at the \verb|page-index| handler that accesses the database. Its first argument is \verb|web|, a component store. Let's unpack it at the signature level. Next, we turn to the \verb|db| component.
+In turn, to make the \code{db} and \code{smtp} components available for the server, declare them as dependencies:
+
+\begin{english}
+  \begin{clojure}
+(component/system-map
+ :db   (make-db pool)
+ :smtp (make-smtp smtp)
+ :server
+ (-> jetty
+     make-server
+     (component/using [:db :smtp])))
+  \end{clojure}
+\end{english}
+
+Pay attention that \code{page-users} and \code{page-feedback} functions take more then one argument now. Before, it was only a request, but now a component was added to it. In the case of the \code{page-users} handler, it is a running database.
 
 \ifnarrow
 
 \begin{english}
   \begin{clojure}
 (defn page-index
-  [{:keys [db]} request]
-  (let [data (db/query db
-               "select * from requests")]
+  [request db]
+  (let [users (db/query db
+                "select * from users")]
     {:status 200
      :body (with-out-str
              (clojure.pprint/pprint
-               data))}))
+               users))}))
   \end{clojure}
 \end{english}
 
@@ -3096,16 +3053,18 @@ Let's take a look at the \verb|page-index| handler that accesses the database. I
 
 \begin{english}
   \begin{clojure}
-(defn page-index
-  [{:keys [db]} request]
-  (let [data (db/query db "select * from requests")]
+(defn page-users
+  [request db]
+  (let [users (db/query db "select * from users")]
     {:status 200
      :body (with-out-str
-             (clojure.pprint/pprint data))}))
+             (clojure.pprint/pprint users))}))
   \end{clojure}
 \end{english}
 
 \fi
+
+This approach changes our habits slightly yet makes the code more obvious. An HTTP request and a database component are different subjects, so it makes more sense to pass them separately. The schema might be easily extended in the future. If a web page needs a cache, we will add it in three steps. First, we grow the server dependencies; second, pass the component in \code{make-routes}; finally, we accept it in the HTTP handler.
 
 Both methods~--- passing components in a request or routes~--- solve the same problem. The difference is in passing arguments to a handler. Passing components through a request map is convenient because the handler usually takes one argument, and you don't have to change the signature.
 
