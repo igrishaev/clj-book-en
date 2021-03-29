@@ -3940,7 +3940,7 @@ Let's put the settings into the \texttt{integrant\-.test.edn} file (snippet):
 
 \fi
 
-The \verb|ig/read-string| function takes additional EDN tags. Integrant will combine them with its ones when reading the file. Let's wrap the read configuration in the function. The first argument of \verb|ig/read-string| is the map with the \verb|#env| tag from the previous chapter. Integrant supplements our map with its own one, so both \verb|#ig/ref| and \verb|#env| will work.
+The \verb|ig/read-string| function takes additional EDN tags. Integrant will combine them with its ones when reading the file. Let's wrap the read configuration in the function \code{load-config}. The underlying \code{ig/read-string} takes a map with the \verb|#env| tag from the previous chapter. Integrant supplements our map with its own one, so both \verb|#ig/ref| and \verb|#env| will work.
 
 \ifnarrow
 
@@ -4015,11 +4015,11 @@ In Clojure, keys can be hierarchical. The \verb|derive| function takes two keys 
 \end{english}
 
 
-When the multimethod looks for an action by a key, it takes inheritance into account. If the method is specified for \verb|::database|, calling from \verb|::postgresql| will not result in an error: the \verb|::database| version will work.
+When the multimethod looks for an action by a key, it takes inheritance into account. If the method is specified for \verb|::database|, calling from \verb|::postgresql| will not result in an error because the \verb|::database| version will work.
 
 Integrant runs on multimethods, so inheritance is useful. Suppose we have a project with two databases: a master for writing and a replica for reading. The \verb|::db-master| and \verb|::db-replica| components differ only in their input parameters.
 
-If we didn't know about inheritance, we would write \verb|ig/init-key| and \verb|ig/halt-key!| for each key. It is considered bad practice to repeat code. We have described the \verb|::db| component for database sharing. Let's inherit two new ones from it:
+If we didn't know about inheritance, we would write \verb|ig/init-key| and \verb|ig/halt-key!| for each key. It is considered bad practice to repeat code. We have already described the \verb|::db| component for database sharing. Let's inherit two new ones from it:
 
 \begin{english}
   \begin{clojure}
@@ -4028,9 +4028,7 @@ If we didn't know about inheritance, we would write \verb|ig/init-key| and \verb
   \end{clojure}
 \end{english}
 
-Let's update the configuration. For the replica, set the \verb|:read-only| flag to protect ourselves from writing to the wrong source. Pay attention to the dependencies. The worker \emph{writes} data to the database and therefore refers to \verb|::db-master|. The \verb|::hander| component only \emph{reads} data, so it depends on \verb|::db-replica|. See Listing \ref{fig:config-refset} for a config example.
-
-\begin{listing}[ht!]
+Let's update the configuration. For the replica, set the \verb|:read-only| flag to protect ourselves from writing to the wrong source. Pay attention to the dependencies. The worker writes data to the database and therefore refers to \verb|::db-master|. The \verb|::hander| component only reads data, so it depends on \verb|::db-replica|.
 
 \ifnarrow
 
@@ -4070,14 +4068,9 @@ Let's update the configuration. For the replica, set the \verb|:read-only| flag 
 
 \fi
 
-\caption{Configuration with two databases and references to them}
-\label{fig:config-refset}
+The function and the \verb|ig/refset| tag will return a set of references based on the hierarchy. Let one of the components accepts all databases to perform a service query on them. In order not to refer to each database manually, specify the root key \verb|::db|.
 
-\end{listing}
-
-The function and the \verb|ig/refset| tag will return many references based on the hierarchy. Let one of the components is waiting for all databases to make a service request to them. In order not to refer to each database manually, specify the root key \verb|::db|.
-
-To do this, add the \texttt{::db-main\-te\-nance} component. It depends on all databases through \verb|refset|. The \verb|init-key| method will return a background task that runs through the databases and executes the request. Its starting and stopping are similar to the worker. The example below shows how to get to both databases from the parameters.
+To do this, add the \texttt{::db-main\-te\-nance} component. It depends on all databases through \verb|refset|. The \verb|init-key| method will return a background task that runs through the databases and executes the query. Its starting and stopping are similar to the worker. The example below shows how to get to both databases from the parameters.
 
 \ifnarrow
 
@@ -4116,9 +4109,9 @@ To do this, add the \texttt{::db-main\-te\-nance} component. It depends on all d
 
 \index{components!stages}
 
-In addition to starting and stopping, Integrant offers other stages of a component. Unlike \verb|init| and \verb|halt!|, their multimethods will return \verb|nil| or the original object by default (i.e., an empty action). To subscribe a component to an event, extend the multimethod with its key. Let's take a look at a few useful stages.
+In addition to starting and stopping, Integrant offers other stages of a component. Unlike \verb|init| and \verb|halt!|, their multimethods will return \verb|nil| or an empty action by default (i.e., just return the passed object). To subscribe a component to an event, extend the multimethod with its key. Let's take a look at a few useful stages.
 
-\subsection{Preparation}
+\subsubsection{Preparation}
 
 The \verb|ig/prep-key| method prepares parameters. It basically combines them with the default set. Suppose, through trial and error, we have found the ideal database pool metrics. To avoid specifying all fields in the configuration, we will move them to the default map.
 
@@ -4138,7 +4131,7 @@ The \verb|ig/prep-key| method prepares parameters. It basically combines them wi
   \end{clojure}
 \end{english}
 
-The \verb|prep-key| method combines it with parameters. In the config, it is enough to specify only the access fields and, if required, overrides for special cases:
+The \verb|prep-key| method combines defaults with the passed parameters. In the config, it is enough to specify only the access fields and, if required, overrides for special cases:
 
 \ifnarrow
 
@@ -4169,13 +4162,13 @@ The \verb|prep-key| method combines it with parameters. In the config, it is eno
 
 \fi
 
-The \verb|ig/prep| function takes the configuration and prepares each key. To remember this step, add it to \verb|load-config|.
+The \verb|ig/prep| function takes the configuration and prepares each key. Add this step to our function \code{load-config} before the system gets started.
 
-\subsection{Spec}
+\subsubsection{Spec}
 
 \index{spec!in Integrant}
 
-The \verb|ig/pre-init-spec| method binds a component to a spec. If the method returns a spec, it will check the parameters of the component. Make sure we set all the fields in the database connection:
+The \verb|ig/pre-init-spec| method assigns a spec to a component. If the method returns a spec, it will validate the parameters of the component. Make sure we set all the fields in the database connection properly:
 
 \ifnarrow
 
@@ -4185,7 +4178,7 @@ The \verb|ig/pre-init-spec| method binds a component to a spec. If the method re
 
 (s/def :db/username string?)
 (s/def :db/database-name string?)
-;; host, password, etc
+;; host, password, etc...
 
 (defmethod ig/pre-init-spec ::db [_]
   (s/keys :req-un [:db/username
@@ -4213,16 +4206,15 @@ The \verb|ig/pre-init-spec| method binds a component to a spec. If the method re
 \fi
 
 \noindent
-If we pass invalid parameters, we'll get a Spec error. Its message and \verb|explain| report are familiar to you from previous chapters \page{spec-explain}.
+If we pass invalid parameters, we'll get a Spec error. Its message and a context map are familiar to you from previous chapters \page{spec-explain}.
 
-\subsection{Suspending}
+\subsubsection{Suspending}
 
 \index{systems!stopping}
 
 In addition to starting and stopping, Integrant offers the third state of the system~--- \verb|suspended|. In it, the component does not lose its state but only pauses internal processes. If this component is a consumer of messages from a queue, it stops reading the source but does not close the connection. The inverse operation to suspending is \verb|resume|. When resuming, the component continues to work without creating new connections.
 
-
-By default, these events work like \verb|halt| and \verb|init|. Extend the \texttt{ig/sus\-pend\--key!} and \verb|ig/resume-key| methods to specify a custom response to \verb|suspend| and \verb|resume|. This will require an in-depth reading of the documentation. Good luck with your independent study on the topic!
+By default, these events act like \verb|halt| and \verb|init|. Extend the \texttt{ig/sus\-pend\--key!} and \verb|ig/resume-key| methods to specify a custom response to \verb|suspend| and \verb|resume|. We confess that suspending a system is required quite rarely, and this why we will skip the details. You may find all the required information in the official documentation of Integrant project in GitHub.
 
 \section{Summary}
 
@@ -4230,17 +4222,16 @@ Just as a machine is made up of parts, a program consists of components. They ar
 
 Every project needs a system, and the longer it develops, the stronger the need. If there is no agreement in the project on how to write the constituent parts, it starts to slow down. Over time, the project will become too expensive to maintain.
 
-Clojure offers several ways to build a system. The most popular libraries are Mount, Component, and Integrant. They have different approaches so that every developer will find what he likes.
+Clojure offers several ways to build a system. The most popular libraries are Mount, Component, and Integrant. They offer different approaches so that every developer will find what he or she likes.
 
-Mount relies on global variables. If the project is written as in the example
-below
+Mount relies on global variables. If the project is full of definitions like the one below:
 
 \ifnarrow
 
 \begin{english}
   \begin{clojure}
 (def server
-  (run-jetty app {:port 8080})),
+  (run-jetty app {:port 8080}))
   \end{clojure}
 \end{english}
 
@@ -4248,22 +4239,21 @@ below
 
 \begin{english}
   \begin{clojure}
-(def server (run-jetty app {:port 8080})),
+(def server (run-jetty app {:port 8080}))
   \end{clojure}
 \end{english}
 
 \fi
 
 \noindent
-then porting it to Mount will be easy.
-The \verb|server| variable will become an entity that changes its value on command. Mount is fine for those new to Clojure.
+, then porting it to Mount will be easy. The \verb|server| variable will become an entity that changes its value on command. Mount is fine for those new to Clojure.
 
 Component takes a step towards real components. We define entities that isolate the state. Access to a component is determined by the methods that it implements. Components and protocols are similar to objects from modern languages. For this reason, some people accuse the Component of being bloated and too enterprise-like.
 
-Sometimes the solution using components takes up more space than with atoms and functions. On the other hand, it is Component that gives an understanding of how to build sustainable systems. Note, that we discussed most of the questions in the section about Component.
+Sometimes the solution using components takes up more space than with atoms and functions. On the other hand, it is Component that gives an understanding of how to build sustainable systems. Note, that we discussed most of the system-related questions in the section about Component.
 
-The Integrant project goes further: it is free of the OOP cumbersomeness and is generally more Clojure-friendly. Integrant draws on Clojure idioms and techniques to win over experienced developers.
+The Integrant project goes further: it is free of the OOP heaviness and is generally more Clojure-friendly. Integrant stands on Clojure idioms and techniques and thus considered as a good choice for experienced developers.
 
-Our goal is not to find out which library is better. Don't rush to rewrite your project from conditional Mount to Component or vice versa. This is exhausting work, and you will not understand what benefits you have achieved until you feel the need for them.
+Our goal is not to find out which library is better. Don't rush to rewrite your project from, relatively speaking, Mount to Component or vice versa. This is exhausting work, and you will not understand what benefits you have achieved until you feel the need for them.
 
 Instead of arguing about \emph{which} system is better, think about \emph{why} the project needs it. When the answer is clear, technical solutions will come up by themselves.
