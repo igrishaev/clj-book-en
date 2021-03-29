@@ -950,6 +950,8 @@ From the compiler's point of view, it looks like this:
 \noindent
 From the compiler's point of view, it looks like this \fig{fig:chart-sys-3}:
 
+%% TODO: translate
+
 \begin{figure}[b!]
   \chart{chart-sys-3}
   \caption{Зависимости второго уровня}
@@ -990,7 +992,6 @@ Mount stores information about components in private atoms. They are hidden from
 \index{clojure.core!resolve}
 
 The \verb|_state| variable will contain a component map. The double \verb|@| operator plays the following role. The \verb|resolve| function will return a \verb|Var| object by a symbol. Earlier, we found out that the \verb|Var| object is a container that stores a value \page{var-section}. The first \verb|@| retrieves a value from \verb|Var|; it is an atom with a map. The second \verb|@| gets the map from the atom.
-
 
 The map's key is a text link to the component. In our case, it is \texttt{\#'book.systems.mount\-.config/config}. The value is a nested map with the state of the component. We are interested in the \verb|order| field, i.e., its number. Let's sort the components by it and get the correct order:
 
