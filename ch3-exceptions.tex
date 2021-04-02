@@ -3,14 +3,14 @@
 \index{exceptions}
 
 \begin{teaser}
-This chapter considers exceptions in Clojure. How do they work and how do they differ from their Java counterparts? When is it better to throw and when to catch exceptions? What do you write in a log and how do you write it to make an incident investigation easy?
+This chapter considers exceptions in Clojure. How do they work and how do they differ from their Java counterparts? When is it better to throw and when to catch exceptions? What and how to write in logs to investigate an incident quickly?
 \end{teaser}
 
 Somebody might find it strange to devote an entire chapter to exceptions. The topic, after all, is simple: exceptions can only be thrown, caught, and logged. Theoretically, this is enough to work on a project.
 
 Exceptions are technically simple, but they have rich \emph{semantics}. When exactly should you throw and catch exceptions? What useful information do they carry? Where to write exceptions? Can we catch them with predicates? In practice, we are overwhelmed with countless specific cases.
 
-Newbies tend to follow the positive path (as if they are on ideal conditions), so it is hard to troubleshoot errors in their code. Why did the server respond with code 500? There are innumerable possible reasons why the request failed. However, the log entry provides too little information to understand what has happened.
+Newbies tend to follow the positive path. They write code such as there basically cannot be exceptions in their work. This is why it is so hard to troubleshoot errors afterwards. Why did the server respond with code 500? There are innumerable possible reasons why the request failed. However, the log entry provides too little information to understand what has happened.
 
 A good programmer pays close attention to errors. With experience, it becomes clear~--- refusing exceptions does not pay off. Without them, we will complete the task faster, and there will be less code~--- that is right. But later, you will have problems with detailing and fixing said errors.
 
@@ -22,13 +22,13 @@ Exceptions in code are just as important as normal behavior. If you think this k
 
 Before going into detail, let us remember what exceptions are and how they behave.
 
-An exception is an object, most often an instance of the \verb|Exception| class. It differs from other classes in that we can \emph{throw} it. In different languages, there are operators which serve this purpose. Among those are \verb|throw|, \verb|raise|, and others.
+An exception is an object, most often an instance of the \verb|Exception| class. It differs from other classes in that we can throw it. In different languages, there are operators which serve this purpose. Among those are \verb|throw|, \verb|raise|, and others.
 
 The thrown object interrupts execution and floats up the call stack. There are two possible outcomes: either the \verb|catch| statement catches it at one of the levels or not~--- knowingly or by mistake.
 
-In the first case, we will get an exception \emph{object}. We access it as usual: get fields, call methods, pass them to functions. Further behavior depends on program logic. Sometimes an exception is logged, and the program is terminated; otherwise, the program continues running.
+In the first case, we will get an exception object. We access it as usual: get fields, call methods, pass to functions. Further behavior depends on program logic. Sometimes an exception is logged, and the program is terminated; otherwise, the program continues running.
 
-If we do not catch the exception, the program will exit with nonzero code. Unless otherwise specified, the program will write the exception to \verb|stderr| (error channel) before exiting. We will see its class, text, and stack trace there. The last is the chain of calls that an exception passed through.
+If we do not catch the exception, the program will exit with nonzero code. Unless otherwise specified, the program will write the exception to \verb|stderr| (the standard error channel) before exiting. We will see its class, text, and stack trace there. The last is the chain of calls that an exception passed through from the moment it was thrown to caught.
 
 \index{exceptions!stacktrace}
 \index{channels!stderr}
@@ -41,7 +41,7 @@ Some platforms allow you to specify a reaction to an uncaught exception. For exa
   \label{fig:exceptions}
 \end{figure}
 
-Clojure is a hosted language: it relies on the capabilities that the \emph{host} offers. Exceptions are an area where Clojure leverages Java best practices. By default, Clojure uses the \verb|try| and \verb|catch| forms similar to Java's.
+Clojure is a hosted language: it relies on the capabilities that the host offers. Exceptions are an area where Clojure leverages Java best practices. By default, Clojure uses the \verb|try| and \verb|catch| forms similar to Java's.
 
 \index{classes!Throwable}
 
@@ -81,14 +81,13 @@ In the exception tree, each class complements the semantics of the ancestor. Con
 
 The diagram is read like this ``object \arr throwable \arr exception \arr I/O error \arr file not found''. It's easy to guess by the name \verb|FileNotFoundException| what the problem is. If a developer threw a \verb|Throwable|, it would make it harder to find the cause of the error.
 
-There are \emph{checked} and \emph{unchecked} exceptions.
-They differ in semantics. The developer must anticipate checked exceptions and handle them in code. When we read a file, which is not on disk, the \verb|FileNotFoundException| class is a checked exception.
+There are checked and unchecked exceptions in Java. They differ in semantics. The developer must anticipate checked exceptions and handle them in code. When we read a file, it's quite normal that the file is missing. Thus, the \verb|FileNotFoundException| class is a checked exception.
 
 \index{classes!FileNotFoundException}
 
 \label{exc-hierarchy}
 
-However, it is difficult to predict a memory shortage, so \verb|OutOfMemoryError| is an unchecked exception. When resources are limited, any action can run out of memory. There is no point in catching this exception since the system is unstable when there is insufficient memory.
+However, it is difficult to predict a memory shortage, so \verb|OutOfMemoryError| is an unchecked exception. Like any other resource, memory is limited, and our careless actions can exhaust it. There is no point in catching this exception since the system is unstable when there is insufficient memory.
 
 \index{exceptions!checked}
 \index{exceptions!unchecked}
@@ -100,7 +99,7 @@ The classes inherited from \verb|Error| and \texttt{Runtime\-Exception} are unch
 
 To throw an exception, we pass its instance to the \verb|throw| statement. The \verb|catch| statement catches exceptions. In Java and other languages, it relies on a class hierarchy. If the type we are looking for is \verb|IOException|, we will catch all exceptions inherited from this class.
 
-The higher the class in the inheritance tree, the more exceptions the \verb|catch| statement will cover. In Java, it is bad manner to catch errors with the \verb|Throwable| or \verb|Exception| classes. Today's IDEs generate the ``too broad catch expression'' warning. It is better to replace the \verb|Exception| class with some more precise ones: for example, I/O errors, network errors, and others separately.
+The higher the class in the inheritance tree, the more exceptions the \verb|catch| statement will cover. In Java, it is bad manner to catch errors with the \verb|Throwable| or \verb|Exception| classes. Modern IDEs generate the warning ``too broad catch expression'' or similar. It is better to replace the \verb|Exception| class with some more precise ones: for example, I/O errors, network errors, and others separately.
 
 One class is not enough to understand an exception cause.
 \verb|FileNotFoundException| does not have the \verb|file| field to track down which particular file does not exist. Most exceptions take an error message string. The message must be understandable to a person.
@@ -122,33 +121,36 @@ Exceptions are chained. Each instance takes an optional \verb|cause| argument. I
 
 \index{context}
 
-Chains are formed when the code catches an exception but does not know what to do with it. Since the code does not see the full picture at a low level, this is normal. Suppose the method writes data to a file. It has no authority to decide what to do if the file does not exist so an exception will be thrown. Another method that also does not make decisions will catch this exception. You only need to create a new exception with a link to the first one. This is the chain.
+Chains appear when the code catches an exception but does not know how to deal with it. Since the code does not see the full picture at a low level, this is normal. Suppose the method writes data to a file. It has no authority to decide what to do if the file does not exist so an exception will be thrown. Another method that also does not make decisions will catch this exception. You only need to create a new exception with a link to the first one. This is the chain.
 
-Eventually, control will pass to the method that knows what to do.
-The logic depends on an exception type and business rules. If a file does not exist, the program will create it or search elsewhere. If an HTTP request fails, it the method waits for a second and repeat it, and after the third attempt, terminate the program.
+Eventually, control will pass to the method that knows what to do. The logic depends on an exception type and business rules. If a file does not exist, the program will create it or search elsewhere. If an HTTP request fails, the method waits for a second and repeats it, and after the third attempt, the program shuts down.
 
-The system should have the last frontier where all exceptions are caught. If the error has reached this level, then the rules below did not catch it. This indicates abnormal system behavior. A client will receive a text stating that the request has not passed. For investigating the cause, the exception is logged and passed to the error collector.
+The system should have the last frontier where all exceptions are caught. If the error has reached this level, then the rules below did not catch it. This indicates abnormal system behavior. A client will receive a text stating that the request has failed. For investigating the cause, the exception is logged and passed to the error collector.
 
-Conditions imposed by company management to help develop their business are known collectively as business logic. Business logic lies at the top level of code, and the more technical parts come into play at lower levels. Let us say the \verb|get-user| function finds a user by their number. From the outside, it's a black box: we do not know where the data comes from. Suppose the function is communicating with a network. Let us write this in Python:
-
-\ifx\DEVICETYPE\MOBILE
+We, programmers, mostly work on expressing the business logic of a company in code. The logic lies at the top level of code, but more technical parts come into play at lower levels. Let us say the \verb|get_user| function finds a user by their number. It's a black box from the outside: we do not know where the data comes from. Suppose the function is communicating with a network. Let us write this in Python:
 
 \index{languages!Python}
-\begin{python}
-def get-user(id):
+
+\ifnarrow
+
+\begin{english}
+  \begin{python}
+def get_user(id):
   url = "http://api.company.com/" + \
         "user/" + str(id)
   return http.GET(url).body.json()
-\end{python}
+  \end{python}
+\end{english}
 
 \else
 
-\index{languages!Python}
-\begin{python}
-def get-user(id):
+\begin{english}
+  \begin{python}
+def get_user(id):
   url = "http://api.company.com/user/" + str(id)
   return http.GET(url).body.json()
-\end{python}
+  \end{python}
+\end{english}
 
 \fi
 
