@@ -638,13 +638,15 @@ Let's say our HTTP client doesn't throw an exception. Let's do it manually~--- c
 
 \fi
 
-Exceptions are useful in libraries. Code is conventionally divided into two types: execution and coordination. Libraries are the executive code. At the library level, we don't know what semantics the code is running in. If an exception is thrown, business logic will catch it and continue running. But if you suppress errors without explanation, consumers will be dissatisfied. That also applies to the ``return \verb|nil| and write to the log'' pattern, that is, ignore the problem.
+Exceptions are helpful in libraries. At their level, we don't make business decisions because we don't see the whole context. Suppose if an image library cannot find a file, it will throw an exception. The code above will catch it and perform a fallback script: maybe it will download the image from the Internet, open another file, or fail. But the library doesn't know for sure what will happen, so raising an error is the only way to report abnormal behaviour.
+
+Now imagine that if the file does not exist, the library will silently skip writing data. Users will be dissatisfied with this logic: how to make sure everything went smoothly? This also applies to the pattern ``return \verb|nil| and write to the log'', that is, ignore the problem.
 
 \section{More about Chains}
 
 \index{exceptions!chains}
 
-Now let's see how to work with exception chains exactly. The \verb|ex-info| function takes a third optional \verb|cause| parameter. It might be \verb|nil| or another exception that will become part of the new one. Below, the \verb|divide| function catches an arithmetic error and throws a new exception with context.
+Now let's see how to work with exception chains exactly. The \verb|ex-info| function takes a third optional \verb|cause| parameter. It might be \verb|nil| or another exception that will become part of the new one. Below, the \verb|divide| function catches an arithmetic error and throws a new exception with a full context.
 
 \index{exceptions!cause}
 
@@ -694,7 +696,7 @@ Calculation error
 Divide by zero
 \end{text}
 
-Let's write a function that returns an exception list in descending order of precedence. The original exception comes first, the cause of the exception comes second, then~--- the cause of the cause, and so on. Using the \verb|loop| shape is the simplest means of doing this:
+Let's write a function that returns an exception list in descending order of precedence. The original exception comes first, the cause of the exception comes second, then~--- the cause of the cause, and so on. Using the \verb|loop| form is the simplest way of doing this:
 
 \index{iteration}
 \index{clojure.core!loop}
@@ -725,7 +727,7 @@ Let's write a function that returns an exception list in descending order of pre
 
 \fi
 
-To experiment, let's declare the variable \verb|e|. That is a three-link chain of exceptions. At the first level, there is a business logic error: Failed to retrieve user. At the second level — a problem with authorization: Not enough access rights. There is the transport error at the third one: The HTTP request returned status 403.
+To experiment, let's declare the variable \verb|e|. That is a three-link chain of exceptions. At the first level, there is a business logic error: Failed to retrieve a user. At the second level~--- a problem with authorization: Not enough permissions for the resource. There is a transport error at the third one: The HTTP request returned status 403.
 
 \label{e-sample}
 
@@ -763,7 +765,7 @@ To experiment, let's declare the variable \verb|e|. That is a three-link chain o
 
 \index{collections!traversal}
 
-We got an exception tree as a result, but it is not always convenient to work with the tree. Walking through a flat structure is better. The ex-\verb|ex-chain| function we wrote will be useful for us. Here's how to get messages of all exceptions:
+We got an exception tree as a result, but it is not always convenient to work with the tree. Walking through a flat structure is better. The \verb|ex-chain| function we wrote will be useful for us. Here's how to get messages of all exceptions:
 
 \ifx\DEVICETYPE\MOBILE
 
