@@ -731,7 +731,7 @@ To experiment, let's declare the variable \verb|e|. That is a three-link chain o
 
 \label{e-sample}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (def e
@@ -938,13 +938,13 @@ to~specify the depth of the trace.
 
 \index{logging}
 
-Console output helps in debugging, but, in a production run, it is not good. Here's what you can expect from code that catches exceptions.
+Console output helps in debugging, but, in a production run, it is not quite usefull. Here's what you can expect from code that catches exceptions.
 
-The auxiliary data (time, module, process number) of any message is important to us. Messages differ in importance: informational, warning, alarm, and others. This information is not printed, and if you collect it manually, the code grows.
+For any message, we expect to see its auxiliary data. These are the time, namespace, process number. Messages differ in importance: informational, warning, alarm, and others. Printing functions lack this information, and if you collect it manually, the code grows.
 
-When the program runs on multiple servers, message collection is centralized. Imagine an employee switching between hundreds of machines to read logs - that is no good. If the message came over the network, you need to remember the source address.
+When the program runs on multiple servers, message collection is centralized. Imagine an employee switching between hundreds of machines to read logs~--- that is no good. If the message came over the network, you need to remember the source address.
 
-Not all messages are of equal importance. Sometimes libraries generate hundreds of debug messages per minute. We need an algorithm to drop them for specific reasons.
+Not all messages are of equal importance. Sometimes libraries generate hundreds of debug messages per minute. We need an algorithm to drop some of them by rules.
 
 Plus, the console and file aren't the only data feeds. Especially important messages need to be written to the operating system log, sent to email and chatbots, or people in charge as text messages.
 
@@ -959,7 +959,7 @@ Logging solves the above problems. This system gets messages and sends them to t
 \noindent
 Let's write a simple message:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require
@@ -991,9 +991,9 @@ Such a structure has advantages. Historically, many logging libraries have writt
 \index{libraries!Logback}
 \index{libraries!Log4j}
 
-In Clojure, this problem was solved by design. At startup, the \verb|logging| module looks for the \verb|Logback|, \verb|Log4j|, and other libraries. If not, it uses the standard \verb|java.util.logging|. The \verb|log/info|call boils down to calling a class from the found library.
+In Clojure, this problem was solved by design. At startup, the \verb|logging| module looks for the \verb|Logback|, \verb|Log4j|, and other libraries. If not, it uses the standard \verb|java.util.logging|. The \verb|log/info| call boils down to calling a class from the found library.
 
-To pick up the required backend, add it to the dependencies. The \verb|Logback| project is especially popular. It has a large selection of \emph{appenders}, unlike its analogs. An appender determines the destination where to write messages. It may be a file, a remote syslog, or a mail server.
+To pick up the required backend, add it to the dependencies. The \verb|Logback| project is especially popular among other logging backends. It has a large selection of appenders, unlike its analogs. An appender determines the destination where to write messages. It may be a file, a remote syslog, or a mail server.
 
 Add Logback to your project:
 
@@ -1003,11 +1003,12 @@ Add Logback to your project:
 
 \index{formats!XML}
 
-Logging libraries look for settings in standard locations. If you put an XML file in the \verb|resources| folder, the backend will read it at the start. Write the following \verb|logback.xml| file there:
+Logging libraries look for settings in standard locations. If you put an XML file in the \verb|resources| folder, the backend will read it at startup. Write the following \verb|logback.xml| file there:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
-\begin{xml}
+\begin{english}
+  \begin{xml}
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
   <appender name="STDOUT"
@@ -1023,32 +1024,37 @@ Logging libraries look for settings in standard locations. If you put an XML fil
     <appender-ref ref="STDOUT"/>
   </root>
 </configuration>
-\end{xml}
+  \end{xml}
+\end{english}
 
 \else
 
-\begin{xml}
+\begin{english}
+  \begin{xml}
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
   <appender name="STDOUT" class="...ConsoleAppender">
     <encoder>
       <charset>UTF-8</charset>
-      <pattern>%date %-5level %logger{36} - %msg %n</pattern>
+      <pattern>
+        %date %-5level %logger{36} - %msg %n
+      </pattern>
     </encoder>
   </appender>
   <root level="INFO">
     <appender-ref ref="STDOUT"/>
   </root>
 </configuration>
-\end{xml}
+  \end{xml}
+\end{english}
 
 \fi
 
 \index{dates!in logs}
 
-So, we have set the appender to output to the console. The \verb|pattern| tag contains a message template. Template parameters start with a percent sign. Substitution \verb|\%msg| stands for a message, \verb|\%date| ~--- for the current date. Its format is specified in curly braces, for example, \verb|%date{ISO8601}|. Log something with new settings. The output will change:
+So, we have set the appender to output to the console. The \verb|pattern| tag contains a message template. Template parameters start with a percent sign. Substitution \verb|%msg| stands for a message, \verb|%date| ~--- for the current date. Its format is specified in curly braces, for example, \verb|%date{ISO8601}|. Restart the REPL to apply the new settings and log something. The output will change:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (log/info "Hello Logback!")
@@ -1065,9 +1071,11 @@ So, we have set the appender to output to the console. The \verb|pattern| tag co
 
 \fi
 
+\subsection{Exception Context}
+
 \label{log-ex-param}
 
-The \verb|log/info|, \verb|log/error|, and other macros first argument might be not a text, but an exception. Above, we have declared the variable \verb|e| for experimentation. Let's write it to the log:
+The \verb|log/info|, \verb|log/error|, and other macros first argument might be not a text, but an exception. Above, we have declared the variable \verb|e| for experiments. Let's write it to the log:
 
 \ifx\DEVICETYPE\MOBILE
 
@@ -1099,22 +1107,24 @@ Caused by: clojure.lang.ExceptionInfo: HTTP error
 
 \fi
 
-To save space, we have removed part of the trace. From the example, you can see the chain consists of three links, which we specified as \verb|e|. But each link has lost data! The problem is that Logback is unaware that the \verb|data| field of the \verb|ExceptionInfo| class is so important to us.
+To save space, we have removed part of the trace. From the example, you can see the chain consists of three links, which we specified as \verb|e| \page{e-sample}. But each link has lost data! The problem is that Logback is unaware that the \verb|data| field of the \verb|ExceptionInfo| class is so important to us.
 
 \index{logging!exception}
 
 The library offers several templates for exceptions (\verb|%xEx|, \verb|%xException|, and others). They affect the length and detail of the trace but ignore data. Log4j and other projects behave similarly.
 
-In Java, the problem is solved with a new class. Typically, the logging backend offers a class that converts the exception into a string. Create a descendant class and modify the request method there. Set the new class path in logging settings.
+In Java, the problem is solved with a new class. Typically, the logging backend offers a class that converts the exception into a string. We create a descendant class and override specific methods. Then we specify a full path to that class in logging settings.
 
-The method works in Clojure as well, but with some problems. Clojure requires a separate module with the \verb|:gen-class| directive to inherit a class. You will have to read the library documentation, and explore the classes and interfaces. The decision will depend on the specific backend. Switching to Log4 will force us to inherit from another class. There is another way you can follow in Clojure.
+This approach works in Clojure as well, but with some problems. Clojure requires a separate module with the \verb|:gen-class| directive to inherit a class. You will have to read the library documentation, and explore the classes and interfaces. The decision will depend on the specific backend. Switching to Log4 will force us to inherit from another class. There is another way you can follow in Clojure.
 
-Let's write a function for logging errors. This wrapper over \verb|log/error| changes something: it converts the exception to text before writing to the log, which is convenient for us. To collect error data, let's build an exception chain using \verb|ex-chain|. The \verb|ex-print| function runs over it and prints the data to the console.
+First, we write a function ex-print which prints an exception the way we need. Using ex-chain, we traverse the elements and for each one print its class, message and contex. To visually separate parts, we use indents and the pretty printing function which aligns data.
+
+First, we write a function \code{ex-print} that prints an exception the way we need. With \code{ex-chain}, we traverse the elements and, for each one, print its class, message and context. To visually separate parts, we use indents and the pretty-printing function, which aligns data.
 
 \index{printing!exceptions}
 \index{functions!ex-print}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defn ex-print
@@ -1150,9 +1160,11 @@ Let's write a function for logging errors. This wrapper over \verb|log/error| ch
 
 The result looks more attractive than the trace pyramid. The data that led to the error is more visible:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
+(ex-print e)
+
 clojure.lang.ExceptionInfo
   Get user info error
   {:user-id 42}
@@ -1168,6 +1180,8 @@ clojure.lang.ExceptionInfo
 \else
 
 \begin{clojure}
+(ex-print e)
+
 clojure.lang.ExceptionInfo
   Get user info error
   {:user-id 42}
