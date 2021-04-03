@@ -767,25 +767,25 @@ To experiment, let's declare the variable \verb|e|. That is a three-link chain o
 
 We got an exception tree as a result, but it is not always convenient to work with the tree. Walking through a flat structure is better. The \verb|ex-chain| function we wrote will be useful for us. Here's how to get messages of all exceptions:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (map ex-message (ex-chain e))
-("Get user info error"
- "Auth error" "HTTP error")
+;; ("Get user info error"
+;;  "Auth error" "HTTP error")
 \end{clojure}
 
 \else
 
 \begin{clojure}
 (map ex-message (ex-chain e))
-("Get user info error" "Auth error" "HTTP error")
+;; ("Get user info error" "Auth error" "HTTP error")
 \end{clojure}
 
 \fi
 
 \noindent
-And so~--- print line by line (we'll get a column of the same lines):
+And print line by line (we'll get a column of the same lines):
 
 \index{printing!exceptions}
 
@@ -794,12 +794,12 @@ And so~--- print line by line (we'll get a column of the same lines):
   (-> e ex-message println))
 \end{clojure}
 
-Let's express \verb|ex-chain| in short through the \verb|iterate| function. This function applies another one to the argument step by step. We need the \verb|take-while| constraint to stop at the first empty element.
+Let's express \verb|ex-chain| in short through the \verb|iterate| function. This function applies another one to the initial argument, then to the result, then to the new result and so on. We need the \verb|take-while| constraint to stop before the first \code{nil} item.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
-(defn ex-chain [^Exception e]
+(defn ex-chain [e]
   (take-while some?
     (iterate ex-cause e)))
 \end{clojure}
@@ -807,7 +807,7 @@ Let's express \verb|ex-chain| in short through the \verb|iterate| function. This
 \else
 
 \begin{clojure}
-(defn ex-chain [^Exception e]
+(defn ex-chain [e]
   (take-while some? (iterate ex-cause e)))
 \end{clojure}
 
@@ -815,15 +815,15 @@ Let's express \verb|ex-chain| in short through the \verb|iterate| function. This
 
 \section{Printing of Exceptions}
 
-Something went wrong, and we found ourselves in the \verb|catch| thread. The local variable indicates the exception. What can we do about it?
+Something went wrong, and we found ourselves in the \verb|catch| thread. A local variable points to the exception. What can we do about it?
 
-The simplest thing is to print the exception to the console. The \verb|println| function is smart enough: it converts the exception to a map before printing. The map is easy to divide into parts, so it is convenient for editors and IDE. For example, to show only that part of the stack trace that concerns Clojure.
+The simplest thing is to print the exception to the console. The \verb|println| function is smart enough: it converts the exception to a map before printing. The map is easy to divide into parts, so it is convenient for editors and IDE. For example, to show only that part of the stack trace that concerns project-related namespaces.
 
-The last exception in the chain is called the \emph{root}. For convenience, \verb|println| duplicates it to the beginning, so that we can see the root cause immediately. This is what \verb|(println e)| will output:
+The last exception in the chain is called the root. For convenience, \verb|println| duplicates it to the beginning, so that we can see the root cause immediately. This is what \verb|(println e)| will output:
 
 \index{printing!exceptions}
 
- \ifx\DEVICETYPE\MOBILE
+\ifx\DEVICETYPE\MOBILE
 
 \begin{clojure}
 #error {
@@ -878,32 +878,40 @@ The last exception in the chain is called the \emph{root}. For convenience, \ver
 
 The \verb|:trace| vector is called a stack trace. It is a list of Java methods that the exception passed through, from being thrown to being caught. A trace element is a vector with a class, method, and file names as well as a line number.
 
-We have shortened the trace, but tracks usually take up several screens. They show the resulting Java code instead of the initial Clojure one ~--- it's confusing. Noisy traces are a fair reproach to Clojure. On the other hand, this is a common flaw of many JVM languages.
+We have shortened the trace, but usually, they take up several screens. It's important to understand that they signify not Clojure, but Java code made after compilation. When analysing the trace, you should perform a reverse action in your mind: match compiled names with your Clojure code. The trick is not always easy and confuses beginners. Noisy traces are a fair reproach to Clojure. On the other hand, this is a common flaw of most of the JVM languages.
 
 \index{modules!clojure.stacktrace}
 
-The \verb|clojure.stacktrace| package has several functions for printing exceptions. \verb|Print-throwable| prints message and context:
+The \verb|clojure.stacktrace| package has several functions for printing exceptions. \verb|Print-throwable| shows a message and a context:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
-\begin{clojure}
-(clojure.stacktrace/print-throwable e)
+\begin{english}
+  \begin{clojure}
+(require '[clojure.stacktrace :as trace])
+
+(trace/print-throwable e)
 ;; clojure.lang.ExceptionInfo:
 ;; Get user info error
 ;; {:user-id 42}
-\end{clojure}
+  \end{clojure}
+\end{english}
 
 \else
 
-\begin{clojure}
-(clojure.stacktrace/print-throwable e)
-clojure.lang.ExceptionInfo: Get user info error
-{:user-id 42}
-\end{clojure}
+\begin{english}
+  \begin{clojure}
+(require '[clojure.stacktrace :as trace])
+
+(trace/print-throwable e)
+;; clojure.lang.ExceptionInfo: Get user info error
+;; {:user-id 42}
+  \end{clojure}
+\end{english}
 
 \fi
 
-The \verb|with-out-str| macro intercepts the output to the console. The code below does not print anything, but it will return the string:
+The \verb|with-out-str| macro intercepts the output to the console. The code below does not print anything, but it will return a string:
 
 \ifx\DEVICETYPE\MOBILE
 
