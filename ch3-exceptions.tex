@@ -1257,26 +1257,26 @@ Modify the \verb|log-error| so that the message will be a template, and the func
 
 \fi
 
-Error messages are separate from other entries. There are at least two appenders for this: ConsoleAppender and FileAppender. All messages are output to the console to keep the programmer informed. Errors require a response so they are written to a file or sent over the network. Later we analyze them manually or with special programs.
-
 In the chapter on mutability, we'll show you how to boil down the \verb|log/error| macro to calling \verb|log-error| \page{install-logger}. This way, we get rid of importing \verb|log-error| into each module where an error is logged. However, it is too early to talk about it now.
 
 \section{Collecting Exceptions}
 
 \index{exceptions!collecting}
 
-We've figured out how to express an exception as text. Now you can write it to a file, send it by email or even print it. A disadvantage to text is that it is not structured. From a code point of view, this is a stream of characters, and it is not clear where things are. When collecting errors, it is crucial to distinguish data type, subsystem, and module. They are necessary for the following reasons.
+Error messages are separate from other entries. There are at least two appenders for this: a console and a file. All messages are output to the console to keep the programmer informed. Errors require our attention so they are written to a file or sent over the network. Later we analyze them manually or with special programs.
 
-\textbf{Prevent duplication.} During an influx of customers, we might find an error that did not notice before. If we write it to a file every time, we get a ton of identical messages. That is resource-intensive and makes it difficult to find errors.
+We've figured out how to express an exception as text. Now you can write it to a file, send it by email or even print it. A disadvantage to text is that it is not structured. From a code point of view, this is a stream of characters, and it is not clear where things are. When collecting errors, it is crucial to distinguish the key fields such as severity, a subsystem, and module. They are necessary for the following reasons.
 
-A collector determines the error similarity according to special rules. The ``user1 not found'' and ``user2 not found'' messages are slightly different, but the collector will combine them into one entry and show the rest when requested.
+\textbf{Prevent duplication.} During an influx of customers, there might pop up an error that we did not notice before. If we write it to a file every time, we will get a ton of identical messages. That is resource-intensive and makes it difficult to find other errors.
+
+A collector determines the error similarity according to special rules. The ``user1 not found'' and ``user2 not found'' messages are slightly different, but the collector will combine them into one entry and show the rest on demand.
 
 \textbf{Search.} You cannot build an efficient search without a structure.
 When errors are in the form of text, you can search only by the occurrence of a word or regular expression. This search is not relevant; it ignores how closely the item matches the request. It also does not cut out duplicates: we run the risk of being overwhelmed by identical messages in the search results.
 
 \textbf{Statistics.} When we have identified error parts, we can build reports on them. For example, we can find out how many errors happened in the last month or year, or group data by projects or teams, or identify projects where mistakes happen most often.
 
-\textbf{Knowledge base.} In a collection system, every error becomes an artifact. They write comments to it, attach screenshots and screen recordings. You can refer to an error in a task or review. If exceptions are logged, these options are not available.
+\textbf{Knowledge base.} In a collection system, every error becomes an artifact. We write comments to it, attach screenshots and screen recordings. You can refer to an error in a task or review. If exceptions are logged to plain files, these options are not available.
 
 \index{databases!Sentry}
 
