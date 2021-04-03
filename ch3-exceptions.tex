@@ -154,17 +154,17 @@ def get_user(id):
 
 \fi
 
-If we call a function with a number that does not exist in the system, we will get the \verb|HTTP Error: status 404| exception. This text does not say anything about the user. We will not understand from such an entry in the log which service we accessed.
+If we call a function with a number that does not exist in the system, we will get the \verb|HTTP Error: status 404| exception. This text does not say anything about the user. We will not even understand from this wording which service we tried to reach.
 
-The more we go into technical details, the less we know about the business. In HTTP, there is no such thing as a user. Only the method, address, and other fields of the request are known. Let us divide the error into two halves.
-The top half indicates the business reason: User 42 was not found. Why? The GET request to the \verb|http://api.company.com/user/42| address returned status 404 due to technical glitch.
+The more we go into technical details, the less we know about the business. In HTTP, there is no such thing as a company user. Only the method, address, and other fields of the request are known. Let us divide the error into two halves. The top half indicates the business reason: User 5 was not found. Why? The GET request to the \verb|http://api.company.com/user/5| address returned status 404, which we consider as a negative one.
 
-Let us place \verb|try/catch| in our code. If the exception came from technical levels, let us add context and send it up. The pattern is called \verb|re-throw|. Here is the new Python code:
+Let us place \verb|try/catch| in our code. If the exception came from technical levels, we will add context and send it up. The pattern is called \verb|re-throw|. Here is the new Python code:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
-\begin{python}
-def get-user(id):
+\begin{english}
+  \begin{python}
+def get_user(id):
   try:
     url = "http://api.company.com/" + \
           "user/" + str(id)
@@ -172,29 +172,32 @@ def get-user(id):
   except Exception as e:
     raise Exception ("Cannot fetch " + \
           "user " + str(id)) from e
-\end{python}
+  \end{python}
+\end{english}
 
 \else
 
-\begin{js}
+\begin{english}
+  \begin{python}
 def get_user(id):
   try:
     url = "http://api.company.com/user/" + str(id)
     return http.GET(url).body.json()
   except Exception as e:
-    raise Exception("Cannot fetch user " + str(id)) from e
-
-\end{js}
+    raise Exception("Cannot fetch user " + str(id)) \
+      from e
+  \end{js}
+\end{english}
 
 \fi
 
 \index{HTTP!errors}
 
-The new exception describes a business problem while referring to a technical one. An HTTP error might also have the following causes: an expired certificate or connection problems. A chain of exceptions is formed. There are up to five or more links in projects.
+The new exception describes a business problem while referring to a technical one. An HTTP error might also have its own causes: an expired certificate or connection problems. A chain of exceptions is formed. There might be up to five or more links in exceptions from real projects.
 
-Descending a chain is like an interrogation. In response to each why question, we receive new information until we get to the heart of the matter. This is not to say that the innermost exception is more important than the others: the \verb|HTTPError| exception cannot answer all questions alone. The important thing is how you came to it.
+Descending a chain is like an interrogation. In response to each ``why'' question, we receive new information until we get to the heart of the matter. This is not to say that the innermost exception is more important than the others: the \verb|HTTPError| exception cannot answer all questions alone. The important thing is how you came to it.
 
-That is how exceptions work in languages like Java, Python, and others. Each platform has its features, but the overall picture does not change. Now let us take a look at what Clojure has to offer.
+That is how exceptions work in languages like Java, Python, and others. Each platform has its features, but the overall picture stays the same. Now let us take a look at what Clojure has to offer.
 
 \section{Moving on to Clojure}
 
@@ -207,13 +210,13 @@ Execution error (ArithmeticException)...
 Divide by zero
 \end{text}
 
-This is the bug report. It looks different depending on the editor and settings. Emacs with the CIDER module will open the \texttt{*cider\--error*} buffer with detailed information.
+This is the error report. It looks different depending on the editor and settings. Emacs with the CIDER module will open the \texttt{*cider\--error*} buffer with detailed information.
 
 \index{Emacs!*cider-error*}
 \index{REPL}
 \index{exeptions!in REPL}
 
-Note that an exception in the REPL does not stop it: a command is still expected from us. The REPL catches errors and only displays them on a screen. Clojure programs work as usual in a production run. If no exception is caught on the main thread, the program will stop.
+Note that an exception in the REPL does not stop it: the program still waits for us to type something. The REPL catches errors and only displays them on a screen. In production, Clojure programs work as usual. If no exception is caught in the main thread, the program will stop.
 
 To catch the exception, place the code in the \verb|try| form. It is followed by one or more \verb|catch| forms. They indicate which classes to catch and what to do with an exception. Here's how to safely divide a number:
 
@@ -226,12 +229,11 @@ To catch the exception, place the code in the \verb|try| form. It is followed by
     (println "Weird arithmetics")))
 \end{clojure}
 
-The \verb|catch| form takes a class and an arbitrary symbol. An exception will be bound with it if control is taken to that branch. Next goes the arbitrary code. There, the exception is available as the local variable \verb|e|.
+The \verb|catch| form takes a class and an arbitrary symbol. An exception will be bound to that symbol if control is taken to this branch. Next goes the arbitrary code. There, the exception is available as the local variable, which is \verb|e| in our case.
 
 \index{exceptions!ex-message}
 
-We display the text about the failure of calculations.
-This explanation is of little use. The \verb|.getMessage| method will return the message assigned to the exception when it was created. Since version 1.10, Clojure offers the \verb|ex-message| function that does the same:
+We display the text about the failure of calculations without explaining the reason. Let the text be more detailed. The \verb|.getMessage| method will return the message assigned to the exception when it was created. Since version 1.10, Clojure offers the \verb|ex-message| function that does the same:
 
 \begin{clojure}
 (try
@@ -241,8 +243,7 @@ This explanation is of little use. The \verb|.getMessage| method will return the
 ;; Divide by zero
 \end{clojure}
 
-The \verb|ArithmeticException| class fails to catch some computation errors.
-What will happen if you add 1 to \verb|nil|? Even if we put the calculations in \verb|try/catch|, we won't catch the exception:
+Clojure beginners might be surprised that the \verb|ArithmeticException| class fails to catch some computation errors. What will happen if you add 1 to \verb|nil|? Even if we put the calculations in \verb|try/catch|, we won't catch the exception:
 
 \ifx\DEVICETYPE\MOBILE
 
@@ -251,7 +252,7 @@ What will happen if you add 1 to \verb|nil|? Even if we put the calculations in 
   (+ 1 nil)
   (catch ArithmeticException e
     (println "Weird arithmetics")))
-;;Execution error (NullPointerException)
+;; Execution error (NullPointerException)
 \end{clojure}
 
 \else
@@ -268,12 +269,11 @@ What will happen if you add 1 to \verb|nil|? Even if we put the calculations in 
 
 \index{NPE}
 
-\noindent
 That is because the \verb|ArithmeticException| and \verb|NullPointerException| classes do not overlap. They have different paths in the inheritance tree, so catching one does not affect the other. And rightly so, because the classes have different semantics. An arithmetic error is not the same as \verb|Null| instead of a value.
 
 \index{exceptions!brances}
 
-The \verb|try| form takes several \verb|catch| ones. Let's catch both cases :
+The \verb|try| form takes several \verb|catch| ones. Let's catch both cases:
 
 \begin{clojure}
 (try
@@ -284,7 +284,7 @@ The \verb|try| form takes several \verb|catch| ones. Let's catch both cases :
     (println "You've got a null value")))
 \end{clojure}
 
-The macro iterates over the classes from each \verb|catch| and stops at the first one that matches. The \verb|try| will result in the last expression from the \verb|catch| block that matched. In the example above, the result will be \verb|nil| because \verb|println| will return it. If no branches match, the exception will continue to go up the call stack.
+The macro iterates over the classes from each \verb|catch| and stops at the first one that matches. The \verb|try| will result in the last expression from the \verb|catch| block that matched. In the example above, the result will be \verb|nil| because the \verb|println| function will return it. If no branches match, the exception will continue to go up the call stack.
 
 \index{inheritance}
 
@@ -300,15 +300,15 @@ The higher the exception class in the tree, the more cases it covers. If you rep
 
 Unlike Java, Clojure doesn't have strict rules about which exceptions to catch. That's up to you. Common sense dictates that intercepting with \verb|Throwable| should not be used: there will be a false impression that the code works without errors.
 
-In the case of \verb|ArithmeticException|, the problem is in the calculations, but for \verb|NPE|~--- it is not. \verb|Nil| instead of a number tells us that the problem is in the source, which passed \verb|nil|, and not in arithmetic. That is why catching \verb|NPE| is wrong. We'll explore this issue in detail in the chapter on tests \page{illegal-arg}.
+In the case of \verb|ArithmeticException|, the problem is in the calculations, but for \verb|NPE|~--- it is not. \verb|Nil| instead of a number tells us that the problem is in the source, which passed \verb|nil|, and not in arithmetic. That is why catching \verb|NPE| might put you on the wrong track. We'll explore this issue in detail in the chapter on tests \page{illegal-arg}.
 
-The \verb|try/catch| form with a broad scope is placed at the top level of the code. That is needed so that the program never stops. That is how web servers, message queues, and networking software work.
+Usually, we put the \code{try/catch} form on the top level of the code with a broad scope. That is needed so that the program never stops. That is how web servers, message queues, and networking software work.
 
 \index{exceptions!throw}
 
-Sometimes an exception is thrown deliberately to report an abnormal situation. The \verb|new| operator creates a new Java object. Classes and constructor parameters are passed to it. The throw form takes an exception and runs the throw mechanism.
+Sometimes an exception is thrown deliberately to report an abnormal situation. The \verb|new| operator creates a new Java object. It accepts a class name and its constructor parameters. The \code{throw} form takes an exception and runs the throwing mechanism.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (let [e (new Exception
@@ -329,9 +329,10 @@ The message above is not informative. But even if we indicated that the problem 
 
 \index{clojure.core!format}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
-\begin{clojure}
+\begin{english}
+  \begin{clojure}
 (defn add [a b]
   (if (and a b)
     (+ a b)
@@ -340,17 +341,21 @@ The message above is not informative. But even if we indicated that the problem 
         (format
           "Value error, a: %s, b: %s"
           a b)))))
-\end{clojure}
+  \end{clojure}
+\end{english}
 
 \else
 
-\begin{clojure}
+\begin{english}
+  \begin{clojure}
 (defn add [a b]
   (if (and a b)
     (+ a b)
-    (let [message (format "Value error, a: %s, b: %s" a b)]
+    (let [message
+          (format "Value error, a: %s, b: %s" a b)]
       (throw (new Exception message)))))
-\end{clojure}
+  \end{clojure}
+\end{english}
 
 \fi
 
@@ -373,7 +378,7 @@ Value error, a: 1, b: null
 
 \fi
 
-The \verb|format| function is useful in that it displays \verb|nil| as \verb|null|. That is its advantage over \verb|str|, which converts \verb|nil| to an empty string. The \verb|str| variant looks like this:
+The \verb|format| function is useful in that it displays \verb|nil| as \verb|null|. That is its advantage over \verb|str|, which converts \verb|nil| to an empty string. The \verb|str| variant would look like this:
 
 \begin{clojure}
 (str "Value error, a:" 1 ", b: " nil)
@@ -388,22 +393,22 @@ The text is misleading: is \verb|b| an empty string or \verb|nil|? In the case o
 \index{context!in exceptions}
 \index{classes!ExceptionInfo}
 
-The data in a text leads to risk. A message may be too large or disclose unnecessary information. The \verb|ExceptionInfo| class, a Clojure exception, solves this problem. It is designed to store data. Clojure offers some functions for working with it.
+The data in a text leads to risk. A message may be too large or disclose unnecessary information. The \verb|ExceptionInfo| class, a Clojure exception, solves this problem. It is designed to carry arbitrary data. Clojure offers some functions for working with it.
 
 The key \verb|ex-info| function creates an instance of \verb|ExceptionInfo|. The former takes a message and a data map. That is the context in which the exception arose. For example, if an HTTP request fails, the map will contain the method, address, and response code.
 
-\verb|Ex-info| only creates an exception; it doesn't throw it. The result is passed to \verb|throw|:
+\verb|Ex-info| only creates an exception but doesn't throw it. The result goes to \code{throw}:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (throw (ex-info
         "Cannot fetch user."
-        {:user-id 42
+        {:user-id 5
          :http-status 404
          :http-method "GET"
          :http-url
-         "https://host.com/users/42"}))
+         "https://host.com/users/5"}))
 \end{clojure}
 
 \else
@@ -411,17 +416,17 @@ The key \verb|ex-info| function creates an instance of \verb|ExceptionInfo|. The
 \begin{clojure}
 (throw (ex-info
         "Cannot fetch user."
-        {:user-id 42
+        {:user-id 5
          :http-status 404
          :http-method "GET"
-         :http-url "https://host.com/users/42"}))
+         :http-url "https://host.com/users/5"}))
 \end{clojure}
 
 \fi
 
-We have separated the message and data. The text does not reveal a user number and service address. It will be logged or sent to a user, and the context will be processed separately.
+We have separated the message and the data. The text does not reveal a user number and service address. It will be logged or sent to a user, and the context will be processed separately.
 
-Remember a few rules when working with context. A map must not be \verb|nil|. That is the rare case where Clojure distinguishes \verb|nil| from a collection. Do not store values that cannot be written to a file, such as a stream or a network connection, in a map. Ideally, the context is transmitted over the network in JSON format. We'll look at what to do with context later.
+Remember a few rules when working with context. A map must not be \verb|nil|. That is the rare case where Clojure distinguishes \verb|nil| from an empty map. Do not store values that cannot be written to a file, such as a stream or a network connection, in a map. Ideally, the context is transmitted over the network in JSON format. We'll look at what to do with the context later.
 
 The \verb|ex-data| function will return the exception data. If this is a native \verb|ExceptionInfo|, we'll get a map. For other classes, the function will return \verb|nil|.
 
@@ -430,11 +435,11 @@ The \verb|ex-data| function will return the exception data. If this is a native 
 Let's catch the exception: in the \verb|catch| form, we'll specify the \verb|ExceptionInfo| class. The \verb|ex-data| function retrieves the map that was passed to \verb|ex-info|.
 Let's split it into fields and build a message.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (try
-  (get-user 42)
+  (get-user 5)
   (catch clojure.lang.ExceptionInfo e
     (let [{:keys [http-method http-url]}
           (ex-data e)]
@@ -447,18 +452,18 @@ Let's split it into fields and build a message.
 
 \begin{clojure}
 (try
-  (get-user 42)
+  (get-user 5)
   (catch clojure.lang.ExceptionInfo e
     (let [{:keys [http-method http-url]} (ex-data e)]
       (format "HTTP error: %s %s" http-method http-url))))
-;; HTTP error: GET https://host.com/users/42
+;; HTTP error: GET https://host.com/users/5
 \end{clojure}
 
 \fi
 
 \section{When to Throw Exceptions}
 
-It is still unclear when to throw exceptions and when to check only. Let's look at typical situations and solutions.
+It is still unclear when to throw exceptions and when to catch them. Let's look at typical situations and solutions.
 
 There is no point in throwing exceptions when walking through collections. \verb|Nil| behaves like an empty collection of the type that the function accepts.
 
@@ -470,9 +475,9 @@ There is no point in throwing exceptions when walking through collections. \verb
 \end{clojure}
 
 \noindent
-The expressions above should return lists and maps. The key for \verb|nil| will return \verb|nil|. Parsing a map or vector will set the variables to \verb|nil| if the fields don't match. Both of the \verb|let| directives below will create a vector of three \verb|nil| references.
+The expressions above should return lists and maps. The key for \verb|nil| will return \verb|nil|. Splitting a map or vector will set the variables to \verb|nil| if the fields don't match. Both of the \verb|let| directives below will create a vector of three \verb|nil| references.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (let [{:keys [a b c]} nil]
@@ -505,19 +510,18 @@ The expressions above should return lists and maps. The key for \verb|nil| will 
 
 \end{tabular}
 
-
 \fi
 
 \index{nil!punning}
 
-What does nil punning mean? It means \verb|nil| can be treated as different things in different contexts. With this approach, empty values do not cause errors. Of course, Clojure doesn't make full use of nil punning. In Clojure, \verb|nil| works with collections, but not arithmetic and regular expressions.
+The ``nil punning'' term means the language is tolerant to \code{nil} values and might deal with it without raising exceptions. For example, all the collections functions treat \code{nil} as an empty collection of a type that is actually meant. Of course, Clojure doesn't make full use of nil punning. In Clojure, \verb|nil| works with collections, but not arithmetic and regular expressions.
 
 \index{spec!valid?}
 \index{spec!conform}
 
 When in doubt about a collection, use a spec. The \verb|s/valid?| and \verb|s/conform| functions from the last chapter \page{spec-conform} will help you make sure the collection is correct. That will separate validation from data manipulation. If validation fails — throw an exception. Pass the \verb|explain| data into the context so you can parse it later.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require '[clojure.spec.alpha :as s])
@@ -549,7 +553,7 @@ When in doubt about a collection, use a spec. The \verb|s/valid?| and \verb|s/co
 \index{spec}
 \index{spec!assert}
 
-For the sake of shortness, use the assert \verb|assert| from Spec. It does the same: validates the data and either returns it or throws an exception with \verb|explain| data. The \verb|check-asserts| global flag defines the macro behavior. If it is off, the effect of \verb|assert| disappears, and there will be no exception.
+For the sake of shortness, use the \verb|assert| macro from Spec (don't mix it with the standard \code{assert} from \code{clojure.core}). It does the same: validates the data and either returns it or throws an exception with \verb|explain| data. The \verb|check-asserts| global flag defines the macro behavior. If it is off, the effect of \verb|assert| disappears, and there will be no exception.
 
 \ifx\DEVICETYPE\MOBILE
 
@@ -590,8 +594,7 @@ For the sake of shortness, use the assert \verb|assert| from Spec. It does the s
 
 \fi
 
-Another case of resorting to an exception is resource failure. If the file could not be read, simply reporting this fact is not enough.
-That might have happened for various reasons: the file does not exist or is occupied by another process; there is insufficient disk space or an encoding error, etc. The error category determines what to do with it and how to prevent it from recurring.
+Another case of resorting to an exception is resource failure. If the file could not be read, simply reporting this fact is not enough. That might have happened for various reasons: the file does not exist or is occupied by another process; there is insufficient disk space or an encoding error, etc. The error category determines what to do with it and how to prevent it from recurring.
 
 \index{HTTP!404}
 
@@ -601,7 +604,7 @@ Let's say our HTTP client doesn't throw an exception. Let's do it manually~--- c
 
 \index{HTTP!authentication}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defn authenticate-user [user-id]
