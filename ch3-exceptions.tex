@@ -1198,7 +1198,7 @@ clojure.lang.ExceptionInfo
 \index{printing!interception}
 \index{clojure.core!with-out-str}
 
-To intercept printing to the screen, we wrap the call of \verb|ex-print| in \verb|with-out-str|:
+Now we add a \code{log-error} function which is a wrapper on top of the \code{log/error} macro. The difference is, the macro accepts not an instance of an exception but a finite message produced by \code{ex-print}. To catch printing into a string, we put \code{ex-print} call inside the \code{with-out-str} macro.
 
 \begin{clojure}
 (defn log-error
@@ -1218,7 +1218,7 @@ We pass a message to \verb|log-error| as the second argument. If it does not exi
 
 The second call will log the following:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{text}
 2019-05-03 19:00:05,590 ERROR
@@ -1239,9 +1239,9 @@ clojure.lang.ExceptionInfo
 
 \fi
 
-Modify the \verb|log-error| so that the message will be a template, and the function will take substitution parameters:
+Modify the \verb|log-error| so that the message will be a template, and the function will take substitution parameters like \code{format} does:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (log-error e
