@@ -1674,13 +1674,13 @@ Let's rewrite \verb|account-handler| using exceptions for control flow:
 
 \fi
 
-Our new code is similar to the imperative one. Some people are unhappy that Clojure uses an imperative approach. Never mind. Our job is to make the code maintainable. Loyalty to the paradigm doesn't matter here.
+Our new code is now similar to its Python version. Some people feel confused when Clojure code gets reduced to imperative style. Never mind. Our goal is to make the code maintainable. Loyalty to the paradigm doesn't matter here.
 
-Functions of the texttt{ring.util.http\--res\-ponse} module are available with and without an exclamation mark. It signals that a function throws an exception. For example, \verb|not-found!| will return the \verb|ex-info| which body contains an HTTP response with a 404 status.
+Functions of the \texttt{ring.util.http\--res\-ponse} module are available with and without an exclamation mark. It signals that a function throws an exception. For example, \verb|not-found!| will throw the \verb|ex-info| which body contains an HTTP response with a 404 status. The ordinary \verb|not-found| would only return the negative response without throwing it.
 
 \index{HTTP!404}
 
-To make the scheme work, let's add the \verb|wrap-http-response| decorator. It catches errors from functions with an exclamation mark, extracts an answer from them, and returns it to a client.
+To make the scheme work, let's add the \verb|wrap-http-response| decorator. It catches errors from functions with an exclamation mark, extracts an answer from them, and returns it to a client. Thus, calling \code{(not-found!)} in a handler will lead to the 404 Not Found response but not 500 which denotes a server failure.
 
 \begin{clojure}
 (require '[ring.middleware.http-response
@@ -1694,7 +1694,7 @@ To make the scheme work, let's add the \verb|wrap-http-response| decorator. It c
       wrap-http-response))
 \end{clojure}
 
-Try to use code jumping only as a last resort: if you win something with it~--- shorten the code or quickly solve the problem. If you have to take this step, use the library to refer to examples and documentation.
+Try to use code jumping only as a last resort. You should have a powerful argument for that, say, shorten the code or quickly solve the problem. If you have to take this step, use the library to refer to examples and documentation.
 
 \index{finally}
 \index{context manager}
@@ -1703,7 +1703,7 @@ Try to use code jumping only as a last resort: if you win something with it~--- 
 
 Sometimes the code is executed within a resource. It might be a file, socket, or a database transaction. At the beginning of work, one ``opens'' the resource and~--- at the end~--- ``closes'' it. An open resource is considered busy. When a resource is busy, other clients cannot make full use of it. You can read someone's open file, but can't change it.
 
-Close the resource as soon as you no longer need it. An error can prevent this. If the code working with the resource does not catch the exception, the file or port will remain open until the end of the work. To close the resource even in the error event, resort to the \verb|finally| form.
+Close the resource as soon as you no longer need it. But an unhandled exception can prevent this. If the code working with the resource does not catch the exception, the file or port will remain open until the end of the work. To close the resource even in the case of an error, resort to the \verb|finally| form.
 
 It is placed last in the \verb|try| block. If there is no error, the \verb|finally| form is executed after the main code of \verb|try|. If an exception arises, \verb|finally| will perform between its occurrence and throwing.
 
@@ -1748,7 +1748,7 @@ Let's take a look at manual access to a file: write a few bytes to it. \verb|Fin
 \end{listing}
 
 Today's languages offer context managers, so you don't forget to close the file. A manager can be a class, operator, or macro.
-The manager executes a block of code with additional effects. The entry logic is triggered before the block, and the exit logic~--- after it. The exit logic will take control even if the block has thrown an exception.
+The manager executes a block of code with side effects. The entry logic is triggered before the block, and the exit logic~--- after it. The exit logic will take control even if the block has thrown an exception.
 The platform will hold it, execute the exit code, and throw it again.
 
 \index{languages!Python}
