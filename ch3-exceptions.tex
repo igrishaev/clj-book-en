@@ -1280,13 +1280,13 @@ When errors are in the form of text, you can search only by the occurrence of a 
 
 \index{databases!Sentry}
 
-\footurl{Sentry}{https://sentry.io}[Sentry][-0mm], a web application based on Django, looks decent compared to other systems. One uses it to create projects that accumulate customer errors. To send an error to Sentry, use the HTTP POST method. Its body contains JSON with various fields. Sentry offers dozens of fields to describe an error with. They are for parameters of a machine, an operating system, HTTP request details, a stack trace, and others.
+\footurl{Sentry}{https://sentry.io}[Sentry][-0mm], a web application based on Django, looks decent compared to other systems. One uses it to create projects that accumulate customer errors. To send an error to Sentry, use the HTTP POST method. Its body contains JSON with various fields. Sentry offers dozens of fields to describe an error with. There are parameters of a machine, an operating system, HTTP request details, a stack trace, and others.
 
 \index{libraries!Sentry-clj}
 
-An application does not collect these data on its own but rather uses libraries. They are often called Raven or similar. It's like a pun~--- a \emph{raven} carries news to a \emph{sentry}.
+An application does not collect these data on its own but rather uses libraries. They are often called Raven or similar. It's like a pun~--- a raven carries news to a sentry.
 
-\footurl{Sentry-clj}{https://github.com/getsentry/sentry-clj}[Sentry-clj][-22mm] and \footurl{Exoscale Raven}{https://github.com/exoscale/raven}[Exoscale Raven] libraries are written for Clojure. The former relies on the official Java library. Add it to your project:
+For Clojure, \footurl{Sentry-clj}{https://github.com/getsentry/sentry-clj}[Sentry-clj][-22mm] and \footurl{Exoscale Raven}{https://github.com/exoscale/raven}[Exoscale Raven] libraries are available. The former relies on the official Java library. Add it to your project:
 
 \begin{clojure}
 [io.sentry/sentry-clj "0.7.2"]
@@ -1294,9 +1294,9 @@ An application does not collect these data on its own but rather uses libraries.
 
 \index{DSN}
 
-Set the required DSN to the library. DSN is a project address in Sentry. The project combines messages according to the main feature: backend errors will be in one project, front-end errors~--- in the second one, mobile appl's~--- in the third. DSN is in the project settings of the Integration section.
+Set the required DSN to the library. DSN is a project address in Sentry. The project combines messages according to the main feature: backend errors will be in one project, front-end errors~--- in the second one, mobile appl's~--- in the third. DSN located in the project settings of the Integration section.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require '[sentry-clj.core :as sentry])
@@ -1317,20 +1317,19 @@ Set the required DSN to the library. DSN is a project address in Sentry. The pro
 
 \fi
 
-Once the library knows the DSN, send the message using the \verb|send-event| function. We're especially interested in the \verb|:throwable| parameter that gets an exception.
+Once the library knows the DSN, send the message using the \verb|send-event| function. We're especially interested in the \verb|:throwable| parameter that accepts an exception.
 
 \begin{clojure}
 (sentry/send-event {:throwable e})
 \end{clojure}
 
-In response, we will receive the event number, and a new entry will appear in the project.
-Suppose we passed in an instance of \verb|e|~--- the chain of three exceptions~--- that we've defined above \page{e-sample}. In the Sentry interface, we will see information about each link. The \verb|:extra| field will contain the data of the top-level exception~--- the map \verb|{:user-id 42}|.
+In response, we will receive the event number, and a new entry will appear in the project. Suppose we passed \emph{e}, which is a chain of three exceptions defined above \page{e-sample}. In the Sentry interface, we will see information about each level. The \verb|:extra| field will contain the data of the top-level exception~--- the map \verb|{:user-id 42}|.
 
 \verb|Sentry-clj| does not transmit the entire context; this is its drawback. We would like to see data from all levels, not just the top one. Otherwise, we will not know what the token was, at what address we tried to access the network, and other details. It is possible to collect data manually and pass it to the \verb|:extra| key, but this will increase the code.
 
 \index{libraries!Raven}
 
-The Exoscale Raven library is written in Clojure and therefore takes the language nuances into account. Starting with the recently released version, it transmits the complete exception data. Include it in the project and send an exception \verb|e|:
+The Exoscale Raven library is written in Clojure and therefore takes the language nuances into account. The recent release of the library transmits the complete exception data. Include it in the project and send an exception \verb|e|:
 
 \begin{clojure}
 [exoscale/raven "0.4.13"] ;; project.clj
@@ -1389,12 +1388,11 @@ The Exoscale Raven library is written in Clojure and therefore takes the languag
   \label{fig:ex-json-data}
 \end{listing}
 
-Open the event in Sentry and scroll down. In the \verb|extra| section, the \verb|:via| key with detailed information will appear. Below is a snippet of it \lis{fig:ex-json-data}. Each map consists of an exception class, message, and data. In the \verb|:at| field is a vector of four elements: a class, a method, a filename, and the line where an exception was thrown. Such a report makes it easier to find the cause.
+Open the event in Sentry and scroll down. In the \verb|extra| section, the \verb|:via| key with detailed information will appear. Below is a snippet of it \lis{fig:ex-json-data}. Each map consists of an exception class, message, and data. The \verb|:at| field is a vector of four elements: a class, a method, a filename, and the line where an exception was thrown. Such a report makes it easier to find the cause.
 
 \index{clojure.core!Throwable\arr{}map}
 
-We obtained the structure above with the \texttt{Throw\-able->map} function. It takes an exception and returns a map with the \verb|:via|, \verb|:cause|, and other keys.
-Map items are strings and characters, so the result can be easily written in JSON or EDN formats.
+The library builds the structure above with the \texttt{Throw\-able->map} function. It takes an exception and returns a map with the \verb|:via|, \verb|:cause|, and other keys. Map items are strings and characters, so the result can be easily written in JSON or EDN formats.
 
 \section{Sentry and Ring}
 
