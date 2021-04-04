@@ -1398,9 +1398,10 @@ The library builds the structure above with the \texttt{Throw\-able->map} functi
 
 \index{Ring!Sentry}
 
-Now that you are familiar with Sentry, let's write a protective decorator for a Ring application. It catches errors, sends them to Sentry, and returns a neutral response that the request failed. The decorator should be at the top of the middleware stack.
+Now that you are familiar with Sentry, let's write a protective decorator for a Ring application. It catches errors, sends them to Sentry, and returns a neutral response that the request failed. The decorator stays on top of the middleware stack.
 
-\begin{clojure/lines*}{firstnumber=1}
+\begin{english}
+  \begin{clojure/lines}
 (require '[raven.client :as r])
 
 (defn wrap-exception
@@ -1408,72 +1409,79 @@ Now that you are familiar with Sentry, let's write a protective decorator for a 
   (fn [request]
     (try
       (handler request)
-\end{clojure/lines*}
-
-Please note that the request to Sentry is also wrapped in \verb|try/catch|. Since Sentry is a third-party service, it may be unavailable at times. In this case, both exceptions are logged: the primary one and the one related to Sentry.
-If you need to brush up on how middleware and decorators work, go back to the chapter on web development \page{decorator}.
-
-\ifx\DEVICETYPE\MOBILE
-
-\begin{clojure/lines*}{firstnumber=8}
-(catch Exception e
-  (let [event
-        (-> nil
-            (r/add-exception! e)
-            (r/add-ring-request!
-              request)
-            (r/add-extra!
-              {:something "else"}))]
-    (try @(r/capture! DSN event))))
-\end{clojure/lines*}
-
-\else
-
-\begin{clojure/lines*}{firstnumber=8}
       (catch Exception e
-        (let [event (-> nil
-                        (r/add-exception! e)
-                        (r/add-ring-request! request)
-                        (r/add-extra! {:something "else"}))]
-          (try
-            @(r/capture! DSN event))))
-\end{clojure/lines*}
+        (report-exception request e)
+        {:status 500
+         :body "Internal error"}))))
+  \end{clojure/lines}
+\end{english}
 
-\fi
+The ninth line carries the main feature of the decorator. This is where we decide what to do with the exception which occurred in the HTTP request. To keep the code simple, let's move this part into a separate function. In addition to the exception, it accepts the request so we can report its method and URI. The overall function is pretty dense, so let's review it in chunks.
 
-For the sake of completeness, we are passing to Sentry not just an exception, but an event \coderef{9}. We add an exception, a Ring request, and arbitrary data to it. The \verb|(r/add-<something>)| functions supplement the event with various fields. Raven offers functions to add tags, users and other entities.
+\ifnarrow
 
-\ifx\DEVICETYPE\MOBILE
-
-\begin{clojure/lines*}{firstnumber=17}
-(catch Exception e-sentry
-  (log/errorf e-sentry
-    "Sentry error: %s" DSN)
-  (log/error e "Request failed"))
-(finally
-  {:status 500
-   :body  "Internal error, please try
-   later"})))))))
-\end{clojure/lines*}
+\begin{english}
+  \begin{clojure/lines}
+(defn report-exception [request e]
+ (let
+   [event
+    (-> nil
+     (r/add-exception! e)
+     (r/add-ring-request! request)
+     (r/add-extra! {:some "data"}))]
+  \end{clojure/lines}
+\end{english}
 
 \else
 
-\begin{clojure/lines*}{firstnumber=15}
-            (catch Exception e-sentry
-              (log/errorf e-sentry "Sentry error: %s" DSN)
-              (log/error e "Request failed"))
-            (finally
-              {:status 500
-               :body "Internal error, please try later"})))))))
-\end{clojure/lines*}
+\begin{english}
+  \begin{clojure/lines}
+(defn report-exception [request e]
+  (let [event (-> nil
+                  (r/add-exception! e)
+                  (r/add-ring-request! request)
+                  (r/add-extra! {:some "data"}))]
+  \end{clojure/lines}
+\end{english}
 
 \fi
+
+We are passing to Sentry not just an exception, but an event \coderef{2}. First, we augment it with the exception, the request data and some extra fields. Functions named \verb|(r/add-...)| complement the event with various fields. Raven offers functions to add tags, user and other entities. The second step is to send the event safely:
+
+\ifnarrow
+
+\begin{english}
+  \begin{clojure/lines*}{firstnumber=6}
+(try
+  @(r/capture! DSN event)
+  (catch Exception e-sentry
+    (log/errorf
+      e-sentry "Sentry error: %s" DSN)
+    (log/error e "Request failed")))))
+  \end{clojure/lines*}
+\end{english}
+
+\else
+
+\begin{english}
+  \begin{clojure/lines*}{firstnumber=6}
+    (try
+      @(r/capture! DSN event)
+      (catch Exception e-sentry
+        (log/errorf e-sentry "Sentry error: %s" DSN)
+        (log/error e "Request failed")))))
+  \end{clojure/lines*}
+\end{english}
+
+\fi
+
+Note that calling Sentry is also wrapped in \verb|try/catch|. Since Sentry is a separate service, it might be unavailable. In this case, both exceptions are written to the log: the original one and the latter we got when calling Sentry. If you forgot how decorators and middleware work, go back to the web-development chapter \page{decorator}.
 
 \index{libraries!Manifold}
 \index{asynchrony}
 \index{syntax!@ (deref)}
 
-Let me explain the \verb|@| operator before calling \verb|r/capture!| \ifx\DEVICETYPE\MOBILE\coderef{16}\else\coderef{14}\fi. The function works asynchronously due to the Manifold library. The result is a special \verb|deferred| object which acts as the Java Future object. We won't know about an error until we dereference the former. We'll encounter the \verb|@| operator in following chapters.
+Let's explain the \verb|@| operator before calling \verb|r/capture!| \coderef{7}. The function works asynchronously due to the Manifold library. The result is a special \verb|deferred| object which acts as the Java Future object. We won't know about an error until we dereference the former. We'll encounter the \verb|@| operator in following chapters.
 
 In production systems, one doesn't usually do the dereference of \verb|deferred| objects but wraps them in \verb|d/catch| and \verb|d/chain| macros~--- asynchronous analogs of \verb|catch| and the arrow operator \arr{}. Programming in Manifold is a separate topic; we won't touch on it in this book.
 
