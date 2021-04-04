@@ -1753,7 +1753,7 @@ The platform will hold it, execute the exit code, and throw it again.
 
 \index{languages!Python}
 
-The Python manager is remarkably elegant. It is the \verb|with| statement that expects an object. The object must have the \verb|__enter__| and~\verb|__exit__| methods that will work when entering and exiting. You can use the \verb|with| statement for files, database transactions, and test fixtures. Here's an example with a file:
+The Python manager is remarkably elegant. It is the \verb|with| statement that expects an object. The object must have the \verb|__enter__| and~\verb|__exit__| methods that will work when entering and exiting the block of code. You can use the \verb|with| statement for files, database transactions, and test fixtures. Here's an example with a file:
 
 \index{files}
 
@@ -1762,11 +1762,11 @@ with open("/path/to/file.txt", "w") as f:
     f.write("test")
 \end{python}
 
-Let's write a similar manager for Clojure. It is a macro that takes a symbol and a file path. Within a macro, a file is bound with a symbol. \verb|Finally| ensures the file will close when exiting the block.
+Let's write a similar manager for Clojure. It is a macro that takes a symbol and a file path. Within a macro, a file is bound to a symbol we specified. \verb|Finally| ensures the file will close when exiting the block.
 
 \index{classes!FileWriter}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defmacro with-file-writer
@@ -1793,12 +1793,12 @@ Let's write a similar manager for Clojure. It is a macro that takes a symbol and
 
 \fi
 
-Execute the code and check the \verb|test.txt| file:
+Execute the code and check the \verb|test.txt| file. It must be with the text and also closed. To ensure it is, delete it using your file manager.
 
 \begin{clojure}
 (with-file-writer [out "test.txt"]
   (.write out "Hello macro!")
-  (\ 0 0))
+  (/ 0 0))
 \end{clojure}
 
 Context managers' name begins with the prefix \verb|with-|. So they emphasize that the code works within the resource.
