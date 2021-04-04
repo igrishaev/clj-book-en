@@ -1490,9 +1490,9 @@ In production systems, one doesn't usually do the dereference of \verb|deferred|
 \index{exceptions!jumps}
 \index{GOTO}
 
-Until now, we have regarded an exception as an error signal. Recall the fundamental property of an exception~--- it interrupts the program flow and floats up until it is caught. Sometimes you can use that to move up the stack. If we throw the conditional \verb|MyGOTOException| and, at the top, put \verb|catch| with this class, we'll get the \verb|GOTO| operator:
+Until now, we have regarded an exception as an error signal. Recall the fundamental property of an exception~--- it interrupts the program flow and bubbles up until it is caught. Sometimes you can use that to move up the stack. If we throw a custom \verb|MyGOTOException| and, at the top, put \verb|catch| with this class, we'll get \verb|GOTO| behaviour:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure/lines}
 (try
@@ -1528,39 +1528,51 @@ and difficult to maintain.
 
 \index{imperative style}
 
-Still, there are times when you need to interrupt execution. For example, we have found that a user does not have access rights to the resource. Let's complicate the task: let there be several checks, and you need to cancel each request.
-Writing in imperative languages, this is easy to solve. Python code might look like this:
+Still, there are times when you need to interrupt execution. For example, we have found that a user does not have permissions to the resource. Let's complicate the task: there are several checks, and you need to cancel request if any of them fails. Writing in imperative languages, this is easy to solve. Python code might look like this:
 
 \index{languages!Python}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
-\begin{python}
+\begin{english}
+  \begin{python}
 class AccountHandler(RequestHandler):
+
   def on_get(self, request):
+
     if not self.check_params(request):
       return BadRequest("Wrong input")
+
     if not self.check_account(request):
       return NotFound("No such an acc")
+
     if not self.check_quotas(request):
-      return QuotasReached("Request " + \
-             "rate is limited")
+      return QuotasReached(
+             "Request rate is limited")
+
     return JSONResponse(self.get_data())
-\end{python}
+  \end{python}
+\end{english}
 
 \else
 
-\begin{python}
+\begin{english}
+  \begin{python}
 class AccountHandler(RequestHandler):
   def on_get(self, request):
+
     if not self.check_params(request):
       return BadRequest("Wrong input data")
+
     if not self.check_account(request):
       return NotFound("No such an account")
+
     if not self.check_quotas(request):
       return QuotasReached("Request rate is limited")
+
     return JSONResponse(self.get_data_from_db())
-\end{python}
+  \end{python}
+\end{english}
 
 \fi
 
@@ -1568,11 +1580,11 @@ There is no \verb|return| statement in Clojure. The result of multiple forms is 
 
 \index{Pyramid of Doom}
 
-The \verb|if/else| cascade works, but looks unwieldy. It is not called the pyramid of doom for nothing. The deeper the nesting, the more problems the developer has. For fun, add a conditional to the middle of the Clojure code \lis{fig:clj-pyramid}
+The \verb|if/else| cascade works, but looks unwieldy. The issue is also known as the pyramid of doom. The deeper the nesting, the more problems the developer has. For fun, add another condition to the middle of the Clojure code \lis{fig:clj-pyramid}:
 
 \begin{listing}[ht!]
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defn account-handler [request]
@@ -1611,19 +1623,17 @@ The \verb|if/else| cascade works, but looks unwieldy. It is not called the pyram
 \index{libraries!Ring HTTP Response}
 \index{organisations!Metosin}
 
-You can solve the pyramid problem in different ways, including exceptions. The Ring HTTP Response library offers functions to throw HTTP response exceptions. A decorator is added to the middleware to catch such exceptions and return a response composed of them. Add the library to your project:
+You can solve the pyramid problem in different ways, including exceptions. The Ring HTTP Response library offers functions to throw HTTP response exceptions. There is also a decorator which is put on top of the middleware. It catches HTTP-specific exceptions and return the response brought by them. Add the library to your project:
 
 \begin{clojure}
 [metosin/ring-http-response "0.9.1"]
 \end{clojure}
 
-Let's rewrite \verb|account-handler| in this way:
-%% Напишем \verb|account-handler| по-другому:
-%% TODO
+Let's rewrite \verb|account-handler| using exceptions for control flow:
 
 \index{modules!ring.util.http-response}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require '[ring.util.http-response
