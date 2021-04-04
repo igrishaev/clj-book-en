@@ -1807,6 +1807,65 @@ Context managers' name begins with the prefix \verb|with-|. So they emphasize th
 
 Clojure provides the \verb|with-open| macro. It is an improved version of the code we have written. Unlike our example, \verb|with-open| works with a more abstract source, including a file. Exiting the macro, even with an error, closes the resource.
 
+%% -----------------
+
+Важно помнить, что код из \verb|finally| не попадёт в результат. Форма
+\verb|try| устроена так, что при ошибке результат приходит из одной из веток
+\verb|catch|, а в \verb|finally| находятся побочные эффекты. Лучше всего это
+видно на примере с печатью:
+
+\begin{english}
+  \begin{clojure}
+(try (/ 0 0)
+     (catch Exception e
+       (println "catch")
+       :result-catch)
+     (finally
+       (println "finally")
+       :result-finally))
+  \end{clojure}
+\end{english}
+
+\noindentnarrow
+Если выполнить форму в REPL, увидим вывод:
+
+\begin{english}
+  \begin{clojure}
+catch
+finally
+:result-catch
+  \end{clojure}
+\end{english}
+
+Такой порядок говорит о том, что сначала Clojure выполнит код из \verb|catch|
+(печать <<catch>>) и запомнит результат (кейворд \verb|:result-catch|). Потом выполнит
+\verb|finally| (печать <<finally>>) и отбросит результат
+(\verb|:result-finally|). Кейворд \verb|:result-catch| станет итогом \verb|try|.
+
+Для сравнения приведём неудачный пример из практики. Нужно было выполнить некое
+действие и независимо от исхода вернуть положительный результат. Программист
+обернул код в \verb|try/catch| и записал ошибку в лог. Однако результат он
+поместил в \verb|finally|, что вызвало странное поведение: вместо словаря
+возвращался \verb|nil|.
+
+\begin{english}
+  \begin{clojure}
+(try
+  (do-something)
+  (catch Exception e
+    (log/error e "some error"))
+  (finally
+    {:status 200}))
+  \end{clojure}
+\end{english}
+
+Видимо, программист решил, что \verb|finally|~--- в буквальном смысле финальный
+результат \verb|try|. Это не совсем так: \verb|finally| и правда сработает
+последним, но \verb|try| вернёт либо результат основного кода, либо одной из
+веток catch.
+
+%% -----------------
+
 There is no point in using \verb|finally| when working with collections or pure functions. Use it only when you need to free a busy resource.
 
 \section{Exceptions and Predicates}
