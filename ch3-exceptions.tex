@@ -737,7 +737,7 @@ To experiment, let's declare the variable \verb|e|. That is a three-link chain o
 (def e
   (ex-info
    "Get user info error"
-   {:user-id 42}
+   {:user-id 5}
    (ex-info
      "Auth error"
      {:token "........."}
@@ -753,7 +753,7 @@ To experiment, let's declare the variable \verb|e|. That is a three-link chain o
 (def e
   (ex-info
    "Get user info error"
-   {:user-id 42}
+   {:user-id 5}
    (ex-info "Auth error"
             {:token "........."}
             (ex-info "HTTP error"
@@ -833,7 +833,7 @@ The last exception in the chain is called the root. For convenience, \verb|print
  :via
  [{:type clojure.lang.ExceptionInfo
    :message Get user info error
-   :data {:user-id 42}}
+   :data {:user-id 5}}
   {:type clojure.lang.ExceptionInfo
    :message Auth error
    :data {:token .........}}
@@ -857,7 +857,7 @@ The last exception in the chain is called the root. For convenience, \verb|print
  :via
  [{:type clojure.lang.ExceptionInfo
    :message Get user info error
-   :data {:user-id 42}}
+   :data {:user-id 5}}
   {:type clojure.lang.ExceptionInfo
    :message Auth error
    :data {:token .........}}
@@ -893,7 +893,7 @@ The \verb|clojure.stacktrace| package has several functions for printing excepti
 (trace/print-throwable e)
 ;; clojure.lang.ExceptionInfo:
 ;; Get user info error
-;; {:user-id 42}
+;; {:user-id 5}
   \end{clojure}
 \end{english}
 
@@ -905,7 +905,7 @@ The \verb|clojure.stacktrace| package has several functions for printing excepti
 
 (trace/print-throwable e)
 ;; clojure.lang.ExceptionInfo: Get user info error
-;; {:user-id 42}
+;; {:user-id 5}
   \end{clojure}
 \end{english}
 
@@ -1167,7 +1167,7 @@ The result looks more attractive than the trace pyramid. The data that led to th
 
 clojure.lang.ExceptionInfo
   Get user info error
-  {:user-id 42}
+  {:user-id 5}
 clojure.lang.ExceptionInfo
   Auth error
   {:token "........."}
@@ -1184,7 +1184,7 @@ clojure.lang.ExceptionInfo
 
 clojure.lang.ExceptionInfo
   Get user info error
-  {:user-id 42}
+  {:user-id 5}
 clojure.lang.ExceptionInfo
   Auth error
   {:token "........."}
@@ -1246,13 +1246,13 @@ Modify the \verb|log-error| so that the message will be a template, and the func
 \begin{clojure}
 (log-error e
   "Cannot find user %s, status %s"
-  42 404)
+  5 404)
 \end{clojure}
 
 \else
 
 \begin{clojure}
-(log-error e "Cannot find user %s, status %s" 42 404)
+(log-error e "Cannot find user %s, status %s" 5 404)
 \end{clojure}
 
 \fi
@@ -1323,7 +1323,7 @@ Once the library knows the DSN, send the message using the \verb|send-event| fun
 (sentry/send-event {:throwable e})
 \end{clojure}
 
-In response, we will receive the event number, and a new entry will appear in the project. Suppose we passed \emph{e}, which is a chain of three exceptions defined above \page{e-sample}. In the Sentry interface, we will see information about each level. The \verb|:extra| field will contain the data of the top-level exception~--- the map \verb|{:user-id 42}|.
+In response, we will receive the event number, and a new entry will appear in the project. Suppose we passed \emph{e}, which is a chain of three exceptions defined above \page{e-sample}. In the Sentry interface, we will see information about each level. The \verb|:extra| field will contain the data of the top-level exception~--- the map \verb|{:user-id 5}|.
 
 \verb|Sentry-clj| does not transmit the entire context; this is its drawback. We would like to see data from all levels, not just the top one. Otherwise, we will not know what the token was, at what address we tried to access the network, and other details. It is possible to collect data manually and pass it to the \verb|:extra| key, but this will increase the code.
 
@@ -1347,7 +1347,7 @@ The Exoscale Raven library is written in Clojure and therefore takes the languag
   "type": "clojure.lang.ExceptionInfo",
   "message": "Get user info error",
   "data": {
-    "user-id": 42
+    "user-id": 5
   },
   "at": ["clojure.lang.AFn",
          "applyToHelper", "AFn.java"...]
@@ -1369,7 +1369,7 @@ The Exoscale Raven library is written in Clojure and therefore takes the languag
   "type": "clojure.lang.ExceptionInfo",
   "message": "Get user info error",
   "data": {
-    "user-id": 42
+    "user-id": 5
   },
   "at": ["clojure.lang.AFn", "applyToHelper", "AFn.java", 160]
 }, {
@@ -1942,7 +1942,7 @@ The \verb|catch| form inside \verb|try+| catches exceptions not only with classe
 \begin{clojure/lines}
 (try+
  (throw+ {:type ::user-error
-          :user 42
+          :user 5
           :action :update
           :data {:name "Ivan"}})
  (catch [:type ::user-error] e
@@ -2170,7 +2170,7 @@ That is a naive version; you can improve it by changing the waiting strategy and
 By the way, these functions are compatible with each other. Let's build a combination of \verb|pcall| and \verb|pcall-retry|. Even if the service is not available and we have knocked on it many times, we will get a pair \verb|[ok? result]|.
 
 \begin{clojure}
-(pcall pcall-retry get-user-by-id 42)
+(pcall pcall-retry get-user-by-id 5)
 \end{clojure}
 
 \textbf{ Exceptions in a loop.} The \verb|loop| form is designed in a special way: its \verb|recur| part cannot be inside \verb|try|. Let's say we want to write a recur function without \verb|pcall|. Here is a snippet of code:
@@ -2235,7 +2235,7 @@ The \verb|f| added to the function name means formatting.
              ^String message))))
 
 (errorf! "Error, user: %s, action: %s"
-  42 :delete)
+  5 :delete)
 \end{clojure}
 
 \else
@@ -2245,7 +2245,7 @@ The \verb|f| added to the function name means formatting.
   (let [message (apply format template args)]
     (throw (new Exception ^String message))))
 
-(errorf! "Error, user: %s, action: %s" 42 :delete)
+(errorf! "Error, user: %s, action: %s" 5 :delete)
 \end{clojure}
 
 \fi
