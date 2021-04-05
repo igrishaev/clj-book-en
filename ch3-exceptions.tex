@@ -1873,32 +1873,31 @@ There is no point in using \verb|finally| when working with collections or pure 
 \index{exceptions!predicates}
 \index{predicates!in exceptions}
 
-The \verb|try/catch| system works based on classes and inheritance. If you need to catch a particular exception, write a class and throw an instance of it. A typical Java or Python project carries a module with exceptions.
-The base class \verb|ProjectException| and inherited from it \verb|UserNotFound|, \verb|AccessDenied|, and others are among them. It is a manually written homogeneous code.
+The \verb|try/catch| system relies on classes and inheritance. If you need to catch a particular exception, write a class and throw an instance of it. A typical Java or Python project carries a module with custom exceptions. Usually, there is a \code{ProjectException} class, and others like \code{UserNotFound} or \code{AccessDenied} inherited from it.
 
 \index{libraries!Slingshot}
 
-In the chapter on Spec, we've said that predicates were more powerful than types \page{type-and-pred}. The same is true for exceptions: if you can catch them with a function, you don't need a class. The \footurl{Slingshot}{https://github.com/scgilardi/slingshot}[Slingshot][-6mm] library offers a predicate approach. There are improved versions of \verb|try|, \verb|catch| and \verb|throw|in Slingshot.
+In the chapter on Spec, we've said that predicates were more powerful than types \page{type-and-pred}. The same is true for exceptions: if you can catch them with a function, you don't need a class. The \footurl{Slingshot}{https://github.com/scgilardi/slingshot}[Slingshot][-6mm] library offers a predicate approach. There are improved versions of \verb|try|, \verb|catch| and \verb|throw| macros in Slingshot.
 
 \index{fundamentality}
 
-Those who are not familiar with Clojure will be surprised: you can change even such fundamental things as catching exceptions with the help of macros in it. In other languages, such changes have been waiting for years. In Clojure, you just need to use a library.
+Those who are not familiar with Clojure will be surprised: you can change even such fundamental things as catching exceptions with the help of macros in it. In other languages, such changes have been waiting for years. In Clojure, you just add a library.
 
 \index{macros!try\Plus}
 \index{macros!throw\Plus}
 
-Slingshot contains the \verb|throw+| and \verb|try+| macros. They are compatible with regular \verb|throw| and \verb|try|; if you replace the usual forms with the plus versions, nothing changes. However, these new forms bring benefits.
+Slingshot contains the \verb|throw+| and \verb|try+| macros. They are compatible with regular \verb|throw| and \verb|try|; if you replace the usual forms with the plus versions, nothing changes. However, these new forms are capable of more.
 
-The \verb|throw+| macro accepts any object, not just an exception. A map works best: it combines multiple values in keys. The code below will throw \verb|ex-info| with the given dictionary:
+The \verb|throw+| macro accepts any object, not just an exception. A map works best since it combines multiple values. The code below will throw \verb|ex-info| with the given map:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require
   '[slingshot.slingshot
     :refer [try+ throw+]])
 
-(throw+ {:user-id 42 :action :create})
+(throw+ {:user-id 3 :action :create})
 \end{clojure}
 
 \else
@@ -1906,14 +1905,14 @@ The \verb|throw+| macro accepts any object, not just an exception. A map works b
 \begin{clojure}
 (require '[slingshot.slingshot :refer [try+ throw+]])
 
-(throw+ {:user-id 42 :action :create})
+(throw+ {:user-id 3 :action :create})
 \end{clojure}
 
 \fi
 
-\verb|Throw+| takes an object, a cause exception, a message template, and substitution parameters. Note: the order of the arguments is different from \verb|ex-info|.
+\verb|Throw+| takes an object, a cause exception, a message template, and substitution parameters. Below, here is a code snippet that takes all the arguments into account. Note: the order of the arguments is different from \verb|ex-info|. As Slingshot relies on data, it accepts the object in the first place and a message in the last.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (let [path "/var/lib/file.txt"]
