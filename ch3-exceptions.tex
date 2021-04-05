@@ -55,7 +55,7 @@ In the exception tree, each class complements the semantics of the ancestor. Con
 
 \linegap
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \dirtree{%
  .1 Object.
@@ -245,7 +245,7 @@ We display the text about the failure of calculations without explaining the rea
 
 Clojure beginners might be surprised that the \verb|ArithmeticException| class fails to catch some computation errors. What will happen if you add 1 to \verb|nil|? Even if we put the calculations in \verb|try/catch|, we won't catch the exception:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (try
@@ -362,7 +362,7 @@ The message above is not informative. But even if we indicated that the problem 
 \noindent
 Calling \verb|add| with \verb|nil| makes the message clearer:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 ;; Execution error at book.exceptions/add
@@ -555,7 +555,7 @@ When in doubt about a collection, use a spec. The \verb|s/valid?| and \verb|s/co
 
 For the sake of shortness, use the \verb|assert| macro from Spec (don't mix it with the standard \code{assert} from \code{clojure.core}). It does the same: validates the data and either returns it or throws an exception with \verb|explain| data. The \verb|check-asserts| global flag defines the macro behavior. If it is off, the effect of \verb|assert| disappears, and there will be no exception.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require '[clojure.spec.alpha :as s])
@@ -665,7 +665,7 @@ Now let's see how to work with exception chains exactly. The \verb|ex-info| func
 
 The \verb|ex-cause| function returns a cause of an exception. If there is no cause, we'll get \verb|nil|.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (try
@@ -702,7 +702,7 @@ Let's write a function that returns an exception list in descending order of pre
 \index{clojure.core!loop}
 \index{functions!ex-chain}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defn ex-chain [e]
@@ -823,7 +823,7 @@ The last exception in the chain is called the root. For convenience, \verb|print
 
 \index{printing!exceptions}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 #error {
@@ -913,7 +913,7 @@ The \verb|clojure.stacktrace| package has several functions for printing excepti
 
 The \verb|with-out-str| macro intercepts the output to the console. The code below does not print anything, but it will return a string:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (with-out-str
@@ -1077,7 +1077,7 @@ So, we have set the appender to output to the console. The \verb|pattern| tag co
 
 The \verb|log/info|, \verb|log/error|, and other macros first argument might be not a text, but an exception. Above, we have declared the variable \verb|e| for experiments. Let's write it to the log:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (log/error e "HTTP Error")
@@ -1340,7 +1340,7 @@ The Exoscale Raven library is written in Clojure and therefore takes the languag
 
 \begin{listing}[ht!]
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{json}
 [ {
@@ -1711,7 +1711,7 @@ Let's take a look at manual access to a file: write a few bytes to it. \verb|Fin
 
 \begin{listing}[ht!]
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (import '[java.io File FileWriter])
