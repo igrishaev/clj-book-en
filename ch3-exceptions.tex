@@ -468,10 +468,10 @@ It is still unclear when to throw exceptions and when to catch them. Let's look 
 There is no point in throwing exceptions when walking through collections. \verb|Nil| behaves like an empty collection of the type that the function accepts.
 
 \begin{clojure}
-(assoc nil :test 42)
+(assoc nil :test 5)
 (update nil :test (fnil inc 0))
 (into nil [1 2 3])
-(merge nil {:test 42})
+(merge nil {:test 5})
 \end{clojure}
 
 \noindent
@@ -1949,8 +1949,7 @@ The \verb|catch| form inside \verb|try+| catches exceptions not only with classe
    (clojure.pprint/pprint e)))
 \end{clojure/lines}
 
-When the map is thrown, add the \verb|:type| field \coderef{2}. It specifies a key with the current space, in our case~--- \verb|::user-error|.
-When catching exceptions in another module, the selector looks like this: \spverb|[:type :book.exceptions/user-error]|. The namespace guarantees that we will not intercept \texttt{:user\--error} of someone else's library.
+When the map is thrown, usually we add the \verb|:type| field to the map \coderef{2}. It specifies a key with the current namespace, in our case~--- \verb|::user-error|. When catching exceptions in another module, the selector looks like this: \spverb|[:type :book.exceptions/user-error]|. The namespace guarantees that we will not intercept \texttt{:user\--error} of someone else's library.
 
 The example above should print a thrown map. The variable \verb|e|, which is inside \verb|catch|, does not link to the exception, but the data we passed to \verb|throw+|.
 
@@ -1958,11 +1957,11 @@ Instead of a selector, we can use a predicate, a function of one argument. If th
 
 \index{services!Amazon S3}
 
-Use predicates when you need fine tuned interception conditions. Let's see how to upload a file to Amazon S3. In special situations, Java SDK throws an exception after the file is loaded (if the checksums do not match). We have to delete the unsuccessfully uploaded file so as not to waste space.
+Use predicates when you need fine tuned interception conditions. Let's see how to upload a file to Amazon S3. In special cases, Java SDK throws an exception \emph{after} the file has been uploaded to S3 (for example, if the checksums do not match). We have to delete the unsuccessful uploaded file so as not to waste resources.
 
-Unfortunately, there is neither the \verb|ChecksumError| class nor an equivalent in SDK. Instead, we'll receive a regular \verb|AmazonS3Exception| with a long text. To highlight our case, let's compare the message with the template. Let's take the check into the function:
+Unfortunately, there is neither the \verb|ChecksumError| class nor an equivalent in SDK. Instead, we'll receive a regular \verb|AmazonS3Exception| with a long text. To highlight our case, let's compare the message with the template. Let's make a check function first:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defn aws-checksum-error? [e]
@@ -1988,8 +1987,7 @@ Unfortunately, there is neither the \verb|ChecksumError| class nor an equivalent
 
 \fi
 
-\noindent
-We should put it in \verb|try+| to catch the checksum case:
+Now we put it in \verb|try+| to catch the checksum mismatch case:
 
 \begin{clojure}
 (try+
@@ -1998,34 +1996,42 @@ We should put it in \verb|try+| to catch the checksum case:
     (s3/delete-object ...)))
 \end{clojure}
 
-\footurl{Clj-http}{https://github.com/dakrone/clj-http}[Clj-http], a popular HTTP client for Clojure, uses Slingshot. In case of an error, it throws a response with \verb|throw+|. If we wrap the request in \verb|try+|, we'll get a more detailed analysis of errors. For example, we can get separate branches for status 500 and for the general negative response.
+\footurl{Clj-http}{https://github.com/dakrone/clj-http}[Clj-http], a popular HTTP client for Clojure, uses Slingshot. In case of an error, it throws a response with \verb|throw+|. If we wrap the request in \verb|try+|, we'll get a more detailed analysis of errors. For example, we can get separate branches for status 403, 500, and for the general negative response.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
-\begin{clojure}
+\begin{english}
+  \begin{clojure}
 (require '[clj-http.client :as client])
 
 (try+
  (client/get "http://example.com/test")
+ (catch [:status 403] e
+  (println "Access denied"))
  (catch [:status 500] e
   (println "The service is unavailable"))
  (catch
   [:type :client/unexceptional-status] e
   (println "Negative response")))
-\end{clojure}
+  \end{clojure}
+\end{english}
 
 \else
 
-\begin{clojure}
+\begin{english}
+  \begin{clojure}
 (require '[clj-http.client :as client])
 
 (try+
  (client/get "http://example.com/test")
+ (catch [:status 403] e
+  (println "Access denied"))
  (catch [:status 500] e
    (println "The service is unavailable"))
  (catch [:type :client/unexceptional-status] e
    (println "Negative response")))
-\end{clojure}
+  \end{clojure}
+\end{english}
 
 \fi
 
@@ -2034,8 +2040,7 @@ Slingshot relies on data, not classes, as Clojure encourages. Benefits of this a
 \index{libraries!Ex}
 \index{organisations!Exoscale}
 
-Slingshot is not the only example of exceptions for Clojure. Pay attention to \footurl{Ex}{https://github.com/exoscale/ex}[Ex][-3mm]~--- the analog we use at Exoscale.
-That library allows for the semantics of the keys (\verb|:fault|, \verb|:conflict|), and their inheritance, supports Manifold, and much more.
+Slingshot is not the only example of exceptions for Clojure. Pay attention to \footurl{Ex}{https://github.com/exoscale/ex}[Ex][-3mm]~--- the analog developed at Exoscale. The library takes into account the semantics of the keys (a failure, conflict, etc), and their inheritance, supports Manifold, and much more.
 
 \section{ Techniques and Functions }
 
@@ -2060,7 +2065,7 @@ Let's look at several techniques for exceptions. They are simple, so you shouldn
 
 To make the result more concise, process it with \verb|let|:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (let [[ok? result-error] (pcall inc 1)]
@@ -2084,7 +2089,7 @@ To make the result more concise, process it with \verb|let|:
 
 \index{languages!JavaScript}
 
-A different semantics is popular in JavaScript: callback functions take the \verb|error| and \verb|result| arguments. The \verb|pcall-js| function is a modified version of \verb|pcall| that returns an \tuple {error, result} pair.
+A different semantics is popular in JavaScript: callback functions take the \verb|error| and \verb|result| arguments. The \verb|pcall-js| function is a modified version of \verb|pcall| that returns an \tuple {error, result} pair. When the first item if the pair is not \code{nil}, it means the call failed.
 
 \begin{clojure}
 (defn pcall-js [f & args]
@@ -2096,11 +2101,11 @@ A different semantics is popular in JavaScript: callback functions take the \ver
 \noindent
 The split looks different:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (let [[e user]
-      (pcall-js get-user-by-id 42)]
+      (pcall-js get-user-by-id 7)]
   (if e
     (println (ex-message e))
     (println user)))
@@ -2109,7 +2114,7 @@ The split looks different:
 \else
 
 \begin{clojure}
-(let [[e user] (pcall-js get-user-by-id 42)]
+(let [[e user] (pcall-js get-user-by-id 7)]
   (if e
     (println (ex-message e))
     (println user)))
@@ -2119,7 +2124,7 @@ The split looks different:
 
 \index{functions!with repeat}
 
-\textbf{ Retries with delay.} Sometimes a third party service is unstable, and you have to access it multiple times. Let's wrap the retrying in a function so as not to copy the code. \verb|Pcall-retry| tries to call the target function in multiple passes. The result will be the first successful calling. If an error occurs but abut attempts haven't completed, the function waits and retries the call. When the number of attempts is over, the function will throw an exception.
+\textbf{Retries with delay.} Sometimes a third party service is unstable, and you have to access it multiple times. Let's wrap the retrying in a function so as not to copy the code. \verb|Pcall-retry| tries to call the target function in multiple passes. The result will be the first successful calling. If an error occurs but abut attempts haven't completed, the function waits and retries the call. When the number of attempts is over, the function will throw an exception.
 Internally, the \verb|pcall| we defined above is used.
 
 \index{functions!pcall-retry}
