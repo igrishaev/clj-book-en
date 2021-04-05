@@ -1807,12 +1807,7 @@ Context managers' name begins with the prefix \verb|with-|. So they emphasize th
 
 Clojure provides the \verb|with-open| macro. It is an improved version of the code we have written. Unlike our example, \verb|with-open| works with a more abstract source, including a file. Exiting the macro, even with an error, closes the resource.
 
-%% -----------------
-
-Важно помнить, что код из \verb|finally| не попадёт в результат. Форма
-\verb|try| устроена так, что при ошибке результат приходит из одной из веток
-\verb|catch|, а в \verb|finally| находятся побочные эффекты. Лучше всего это
-видно на примере с печатью:
+It is important to remember that the code from \code{finally} will not be included in the result. The \code{try} expression is designed so that if an error occurs, the result comes from one of the \code{catch} branches. The \code{finally} branch serves only for side effects. This is best seen in the example with printing:
 
 \begin{english}
   \begin{clojure}
@@ -1827,7 +1822,7 @@ Clojure provides the \verb|with-open| macro. It is an improved version of the co
 \end{english}
 
 \noindentnarrow
-Если выполнить форму в REPL, увидим вывод:
+Running this form in REPL will print:
 
 \begin{english}
   \begin{clojure}
@@ -1837,16 +1832,9 @@ finally
   \end{clojure}
 \end{english}
 
-Такой порядок говорит о том, что сначала Clojure выполнит код из \verb|catch|
-(печать <<catch>>) и запомнит результат (кейворд \verb|:result-catch|). Потом выполнит
-\verb|finally| (печать <<finally>>) и отбросит результат
-(\verb|:result-finally|). Кейворд \verb|:result-catch| станет итогом \verb|try|.
+This order means that Clojure will first execute the code from \code{catch} (print ``catch'') and remember the result (keyword \code{:result-catch}). Then it will execute \code{finally} (print <<finally>>) and discard the result (keyword \code{:result-finally}). The \code{:result-catch} keyword will be the result of the whole \code{try}.
 
-Для сравнения приведём неудачный пример из практики. Нужно было выполнить некое
-действие и независимо от исхода вернуть положительный результат. Программист
-обернул код в \verb|try/catch| и записал ошибку в лог. Однако результат он
-поместил в \verb|finally|, что вызвало странное поведение: вместо словаря
-возвращался \verb|nil|.
+For comparison, let's give an unfortunate example from practice. It was necessary to perform some action and, regardless of the outcome, return a positive result. The programmer wrapped the code into the \code{try/catch} block and logged the exception. However, he put the result ino the \code{finally} branch, which caused strange behavior: \code{nil} was returned instead of a map.
 
 \begin{english}
   \begin{clojure}
@@ -1859,12 +1847,7 @@ finally
   \end{clojure}
 \end{english}
 
-Видимо, программист решил, что \verb|finally|~--- в буквальном смысле финальный
-результат \verb|try|. Это не совсем так: \verb|finally| и правда сработает
-последним, но \verb|try| вернёт либо результат основного кода, либо одной из
-веток catch.
-
-%% -----------------
+Apparently, the programmer decided that \code{finally} is literally the final result of \code{try}. This is not entirely true: \code{finally} will actually work last, but \code{try} will return either the result of the main code or one of the \code{catch} branches.
 
 There is no point in using \verb|finally| when working with collections or pure functions. Use it only when you need to free a busy resource.
 
