@@ -1071,7 +1071,7 @@ So, we have set the appender to output to the console. The \verb|pattern| tag co
 
 \fi
 
-\subsection{Exception Context}
+\section{Exception Context}
 
 \label{log-ex-param}
 
@@ -2072,7 +2072,7 @@ To make the result more concise, process it with \verb|let|:
 
 \index{languages!JavaScript}
 
-A different semantics is popular in JavaScript: callback functions take the \verb|error| and \verb|result| arguments. The \verb|pcall-js| function is a modified version of \verb|pcall| that returns an \tuple {error, result} pair. When the first item if the pair is not \code{nil}, it means the call failed.
+A different semantics is popular in JavaScript: callback functions take the \verb|error| and \verb|result| arguments. The \verb|pcall-js| function is a modified version of \verb|pcall| that returns an \tuple{error, result} pair. When the first item if the pair is not \code{nil}, it means the call failed.
 
 \begin{clojure}
 (defn pcall-js [f & args]
