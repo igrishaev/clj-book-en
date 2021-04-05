@@ -2042,7 +2042,7 @@ Slingshot relies on data, not classes, as Clojure encourages. Benefits of this a
 
 Slingshot is not the only example of exceptions for Clojure. Pay attention to \footurl{Ex}{https://github.com/exoscale/ex}[Ex][-3mm]~--- the analog developed at Exoscale. The library takes into account the semantics of the keys (a failure, conflict, etc), and their inheritance, supports Manifold, and much more.
 
-\section{ Techniques and Functions }
+\section{Techniques and Functions}
 
 Let's look at several techniques for exceptions. They are simple, so you shouldn't put them in a separate library. They are usually copied from a project to a project with some changes.
 
@@ -2124,16 +2124,15 @@ The split looks different:
 
 \index{functions!with repeat}
 
-\textbf{Retries with delay.} Sometimes a third party service is unstable, and you have to access it multiple times. Let's wrap the retrying in a function so as not to copy the code. \verb|Pcall-retry| tries to call the target function in multiple passes. The result will be the first successful calling. If an error occurs but abut attempts haven't completed, the function waits and retries the call. When the number of attempts is over, the function will throw an exception.
-Internally, the \verb|pcall| we defined above is used.
+\textbf{Retries with delay.} Sometimes a third party service is unstable, and you have to access it multiple times. Let's wrap the retrying in a function so as not to copy the code. \verb|Call-retry| tries to call the target function in multiple passes. The result will be the first successful calling. If an error occurs but the number of attempts haven't completed, the function waits and retries the call. When the number of attempts is over, the function will throw an exception. Internally, we use the \code{pcall} function to prevent an exception from raising.
 
-\index{functions!pcall-retry}
+\index{functions!call-retry}
 \index{iteration!loop}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
-(defn pcall-retry [n f & args]
+(defn call-retry [n f & args]
   (loop [attempt n]
     (let [[ok? res] (apply pcall f args)]
       (cond
@@ -2150,7 +2149,7 @@ Internally, the \verb|pcall| we defined above is used.
 \else
 
 \begin{clojure}
-(defn pcall-retry [n f & args]
+(defn call-retry [n f & args]
   (loop [attempt n]
     (let [[ok? res] (apply pcall f args)]
       (cond
@@ -2165,21 +2164,29 @@ Internally, the \verb|pcall| we defined above is used.
 
 \fi
 
+Here is how we fetch a user by id from a remote server in three attempts:
+
+\begin{english}
+  \begin{clojure}
+(call-retry 3 get-user-by-id user-id)
+  \end{clojure}
+\end{english}
+
 That is a naive version; you can improve it by changing the waiting strategy and adding logs. However, the principle remains the same.
 
-By the way, these functions are compatible with each other. Let's build a combination of \verb|pcall| and \verb|pcall-retry|. Even if the service is not available and we have knocked on it many times, we will get a pair \verb|[ok? result]|.
+By the way, these functions are compatible with each other. Let's build a combination of \verb|pcall| and \verb|call-retry|. Even if the service is not available and we have knocked on it many times, we will get a pair \verb|[ok? result]|.
 
 \begin{clojure}
-(pcall pcall-retry get-user-by-id 5)
+(pcall call-retry get-user-by-id 5)
 \end{clojure}
 
-\textbf{ Exceptions in a loop.} The \verb|loop| form is designed in a special way: its \verb|recur| part cannot be inside \verb|try|. Let's say we want to write a recur function without \verb|pcall|. Here is a snippet of code:
+\textbf{Exceptions in a loop.} The \verb|loop| form is designed in a special way: its \verb|recur| part cannot be inside \verb|try|. Let's say we want to express retry logic without \verb|pcall|. Here is a snippet of code:
 
 \index{iteration}
 \index{clojure.core!loop}
 
 \begin{clojure}
-(defn pcall-retry [n f & args]
+(defn call-retry [n f & args]
   (loop [attempt n]
     ...
     (try
@@ -2188,13 +2195,13 @@ By the way, these functions are compatible with each other. Let's build a combin
         (recur (inc n))))))
 \end{clojure}
 
-The compiler will not accept the code with the message: ``Can only recur from tail position''. To fix the error, you need to take out \verb|recur| from \verb|try|. The easiest way to do this is with \verb|pcall|, as in the example with \verb|pcall-retry|.
+The compiler will not accept the code with the message: ``Can only recur from tail position''. To fix the error, you need to take out \verb|recur| from \verb|try|. The easiest way to do this is with \verb|pcall|, as in the example with \verb|call-retry|.
 
 \textbf{Throw in place.} By now, we have thrown exceptions using \verb|ex-info| and \verb|throw|. The former builds an exception, the latter throws it. Let's combine them in the \verb|error!| function and simplify the arguments:
 
 \index{functions!error"!}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defn error! [message & [data e]]
@@ -2225,7 +2232,7 @@ The \verb|f| added to the function name means formatting.
 
 \index{functions!errorf"!}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defn errorf! [template & args]
@@ -2250,7 +2257,7 @@ The \verb|f| added to the function name means formatting.
 
 \fi
 
-\textbf{Safe macro.} Catching of exceptions works in macros as well. Code with macros is usually shorter and more expressive than a regular function. The following example shows how to execute code in safe mode, ignoring an error:
+\textbf{Safe macro.} Catching of exceptions works in macros as well. Code with macros is usually shorter and more expressive than a regular function (of course, it doesn't mean you should misuse them). The following example shows how to execute code in safe mode, ignoring an exception:
 
 \index{macros!with-safe}
 
@@ -2273,19 +2280,18 @@ In practice, \verb|nil| does not always mean an error, so the \verb|:error| or \
 
 \section{Summary}
 
-Exceptions in Clojure are similar to Java's. The \verb|try| and \verb|catch| forms are similar to Java statements of the same name. Interception works on classes and inheritance. The higher the class in the hierarchy, the more errors it covers.
+Exceptions in Clojure are similar to Java's. The \verb|try| and \verb|catch| forms are similar to Java statements of the same name. Interception works on classes and inheritance. The higher the class in the hierarchy, the more error cases it covers.
 
-The \verb|ExceptionInfo| class is specifically designed for Clojure. Its \verb|data| field takes any map. The exception type is determined by the \verb|:type| field of the map. The \verb|ex-info| function is an exception constructor.
+The \verb|ExceptionInfo| class is specifically designed for Clojure. Its \verb|data| field takes any map. The exception type is determined by the \verb|:type| field of the map which usually carries a full-qualified keyword. The \verb|ex-info| function is an exception constructor.
 
-An error may have a \verb|cause|. If you catch an exception but don't know what to do with it, throw a new one with context and a link to the initial. That is how exception chains are built. To find out the cause, data from the entire chain will come in, not just from the top link.
+An error may have a \verb|cause|. If you catch an exception but don't know what to do with it, throw a new one with a context and a link to the initial exception. That is how exception chains are built. Data from the entire chain is taken into account, not just from the top link, to investigate the issue.
 
-The code at the application top-level decides what to do with the exception.
-That is best to pass it to the error collection system. Sentry or its analogs can be such a system. Make sure the Sentry client passes all error information, not just the stack trace.
+Special code on top of an application decides what to do with an exception. The best choice would be to pass it to the error collection system. Sentry or its analogs can be such a system. Make sure the Sentry client passes complete information about an exception, not just the stack trace.
 
-If an error occurs, we usually close the resource in the \verb|finally| branch~--- to prevent it from staying busy. A context manager makes it easy to access the resource. The context manager is a \verb|with-<something>| macro wrapping a block of code in \verb|try/finally|. Clojure offers a \verb|with-open| macro working with files.
+If an error occurs, we usually close the resource in the \verb|finally| branch~--- to prevent it from staying busy. A context manager makes it easy to access the resource. Usually, it is a \verb|with-<something>| macro wrapping a block of code in \verb|try/finally|. Clojure offers a \verb|with-open| macro working with various data sources.
 
-Sometimes we can use an exception to jump to a particular place in the code. That is a controversial approach, and you must have good reasons for using it. If jumping code is vital, include a special library.
+Sometimes we can use an exception to jump to a particular place in the code. That is a controversial approach, and you must have good reasons for using it. If jumping code is vital, use a particular library but not a handmade solution.
 
-Slingshot offers the improved macros \verb|try+| and \verb|throw+|. With them, you catch errors with selectors and predicates, not classes. Maps are used instead of exceptions.
+Slingshot offers the improved macros \verb|try+| and \verb|throw+|. With them, you catch errors with selectors and predicates, not classes. Instead of exception objects, Slingshot uses plain maps.
 
 Some functions simplify the exception control. Please take note of them to shorten your code.
