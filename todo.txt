@@ -1,1 +1,128 @@
 - remove english tags
+
+
+\\chapter\{(.+?)\}
+# $1
+
+\\index\{(.+?)\}
+
+\s\\page\{(.+?)\}
+
+\\caption\{(.+?)\}
+
+\s\\lis\{(.+?)\}
+
+\s\\fig\{(.+?)\}
+
+\noindent
+
+\linegap
+
+\\coderef\{(.+?)\}
+(line $1)
+
+
+(?s)\\begin\{teaser\}(.+?)\\end\{teaser\}
+*$1*
+
+\\emph\{(.+?)\}
+*$1*
+
+\\textbf\{(.+?)\}
+**$1**
+
+\\tuple\{(.+?)\}
+&#x3008;&nbsp;$1&nbsp;&#x3009;
+
+\\texttt\{(.+?)\}
+`$1`
+
+\\code\{(.+?)\}
+`$1`
+
+\\section\{(.+?)\}
+## $1
+
+\\subsection\{(.+?)\}
+### $1
+
+\\subsubsection\{(.+?)\}
+#### $1
+
+
+\\verb\|(.+?)\|
+`$1`
+
+\\spverb\|(.+?)\|
+`$1`
+
+
+
+;; drop narrow
+(?s)\\ifnarrow(.+?)\\else(.+?)\\fi
+$2
+
+;; drop english wrapper
+(?s)\\begin\{english\}(.+?)\\end\{english\}
+$1
+
+;; remap clojure
+(?s)\\begin\{clojure\}(.+?)\s*\\end\{clojure\}
+~~~clojure$1\n~~~
+
+(?s)\\begin\{clojure/lines\*?\}(.+?)\s*\\end\{clojure/lines\*?\}
+~~~clojure$1\n~~~
+
+
+;; python
+(?s)\\begin\{python\}(.+?)\s*\\end\{python\}
+~~~python$1\n~~~
+
+;; xml
+(?s)\\begin\{xml\}(.+?)\s*\\end\{xml\}
+~~~xml$1\n~~~
+
+;; json
+(?s)\\begin\{json\}(.+?)\s*\\end\{json\}
+~~~json$1\n~~~
+
+;; text
+(?s)\\begin\{text\}(.+?)\s*\\end\{text\}
+~~~$1\n~~~
+
+
+(?s)\\begin\{listing\}\[(.+?)\](.+?)\\end\{listing\}
+$2
+
+\n\n\n+
+\n\n
+
+(?s)\\footurl\{(.+?)\}\{(.+?)\}\[(.+?)\]
+[$1]($2)
+
+\[-\d+mm\]
+
+
+\[\d+mm\]
+
+
+
+\\label\{(.+?)\}
+
+
+\arr
+&rarr;
+
+
+``(.+?)''
+"$1"
+
+
+~---
+ --
+
+\-
+
+
+  ~~~
+~~~
