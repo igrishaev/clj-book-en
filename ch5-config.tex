@@ -69,16 +69,15 @@ Files and environment variables complement each other. For example, an applicati
 
 \index{tags}
 
-Advanced configurations use tags. In the file, the tag is placed before the value: \verb|:password #env DB_PASSWORD|. This means that the \verb|password| field contains not the \verb|DB_PASSWORD| string but the value of
-the same name variable.
+Advanced configurations use tags. In the file, the tag is placed before the value: \verb|:password #env DB_PASSWORD|. A tag is a short string meaning that the next value is processed specially. In our example, the \code{password} field contains not the \verb|DB_PASSWORD| string but the value of the same name variable.
 
 The first stage ends when we have received the data. It doesn't matter if it was a file, environment variables, or something else. The application moves on to the second stage, \textbf{type inference}.
 
 \index{inference!types}
 
-JSON and YAML have basic types: strings, numbers, booleans, and \verb|null|. It is easy to see that there is no date among them. We use dates to define promotions or calendar events. In files, dates are specified either as an ISO string or as the number of seconds since January 1, 1970 (\footurl{ UNIX era}{https://en.wikipedia.org/wiki/Unix\_time}[Unix time][1mm]). Specially designed code runs through the data and converts dates to the type accepted in the language.
+JSON and YAML have basic types: strings, numbers, booleans, and \verb|null|. It is easy to see that there is no date among them. We use dates to define promotions or calendar events. In files, dates are specified either as an ISO string or as the number of seconds since January 1, 1970 (\footurl{UNIX era}{https://en.wikipedia.org/wiki/Unix\_time}[Unix time][1mm]). Specially designed code runs through the data and converts dates to the type accepted in the language.
 
-Type inference applies to collections as well. Sometimes maps and arrays are not enough to work comfortably. Event types of an event are stored as a set because it cuts off duplicates and quickly validates entry. Scalars (e.g., \verb|UUID|) are also wrap in classes for identifiers.
+Type inference applies to collections as well. Sometimes maps and arrays are not enough to work comfortably. For example, possible types of something are stored as a set because it cuts off duplicates and quickly validates if a value belongs to it. It's easier to describe some complex types with plain values (strings, numbers) and coerce them later. A string \code{http://test.com} will become an instance of \code{java.net.URL}, and a sequence of 36 hexadecimal characters will be a \code{UUID}.
 
 Environment variables are less flexible than modern formats. JSON provides scalars and collections, while variables contain nothing but text. Type inference is not only desirable, but necessary for them. You cannot pass a port as a string to where a number is expected.
 
@@ -94,29 +93,28 @@ After validation, proceed to the last stage. The application decides where \text
 
 \index{errors!config}
 
-At each stage, an error may occur, e.g., file not found, syntax violations, invalid field. In this case, the program displays a message and exits. The text should explicitly answer the question of what happened. Often programmers keep in mind only the positive path and forget about errors. When running their programs, you see a stack trace that is difficult to understand.
+At each stage, an error may occur, e.g., file not found, syntax violations, invalid field. In this case, the program displays a message and exits. The text should explicitly answer the question of what happened. Too often, programmers keep in mind only the positive path and forget about errors. When running their programs, you see a stack trace that is difficult to understand.
 
-If an error occurred during the verification stage, explain which field is to blame. In the chapter on Spec, we looked at how to improve a spec report \page{spec-messages}. It takes effort but pays off over time.
+If an error occurred during the verification stage, explain which field was a culprit. In the chapter on Spec, we looked at how to improve a spec report \page{spec-messages}. It takes effort but pays off over time.
 
 \index{DevOps}
 \index{report!explain}
 
-In the IT industry, some people write code, and others manage it. Your DevOps colleagues don't know Clojure and won't understand the raw \verb|explain|.
-Sooner or later, they will ask you to modify the configuration messages. Do this in advance out of respect for your colleagues.
+In the IT industry, some people write code, and others manage it. Your DevOps colleagues don't know Clojure and won't understand the raw \code{s/explain}. Sooner or later, they will ask you to improve the configuration messages. Do this in advance out of respect for your colleagues.
 
-If there is something wrong with the config, then the program should crash immediately rather than work in the hope that everything will settle somehow. It happens that one of the parameters is specified incorrectly, but the program does not use it for the time being. Avoid this: the error will appear at the most inopportune moment.
+If there is something wrong with the config, then the program should terminate immediately rather than work, hoping that everything will settle somehow. Sometimes one of the parameters is specified incorrectly, but the program does not use it for the time being. Avoid this: the error will appear at the most inopportune moment.
 
 \index{channels!stderr}
 
-If one of the configuration steps fails, the program should exit with nonzero code. The message is sent to the \verb|stderr| channel to signal an abnormal condition. Advanced terminals print text from \verb|stderr| in red.
+If one of the configuration steps fails, the program should exit with nonzero code. The message is sent to the \code{stderr} channel to signal an abnormal condition. Advanced terminals print text from \code{stderr} in red to catch your attention.
 
 \section{Configuration Loader}
 
 \index{config!loading}
 
-To reinforce theory with practice, let's write a configuration system. It will be a separate module of about one hundred lines. Before opening the editor, let's think over the main points.
+To reinforce theory with practice, let's write our configuration system. It will be a separate module of about one hundred lines. Before opening the editor, let's think over the main points.
 
-Let's store the configuration in a JSON file. We'll assume that the company has recently switched to Clojure, and DevOps has already written Python scripts to manage configuration settings. EDN will complicate work for our colleagues, so we'll not use it.
+Let's store the configuration in a JSON file. We'll assume that the company has recently switched to Clojure, and DevOps has already written Python scripts to manage configuration settings. Of course, EDN would be the best choice for Clojure programs, but it will complicate work for our colleagues, so we'll not use it for now.
 
 \index{dates}
 
