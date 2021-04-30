@@ -22,18 +22,17 @@ In materials on Clojure, there are such examples:
          :password "test"})
 \end{clojure}
 
-Here the server on port 8080 and the parameters for connecting to the database are defined. The examples are useful because you can copy them into the REPL and evaluate their result: to open a page in a browser or read a table.
+These are the server on port 8080 and the parameters for connecting to the database. The examples are useful because you can execute them in the REPL and check their result: open a page in a browser or perform a SQL query.
 
-In practice, we should write code so that it does not contain concrete numbers and strings. In projects, explicitly setting a port number to a server is considered bad practice. That is fine for documentation and examples, but not for the production launch.
+In practice, we should write code so that it does not carry concrete numbers and strings. Explicitly setting a port number to a server is considered bad practice. That is fine for documentation and examples, but not for the production launch.
 
-Port 8080 and other combinations of zeros and eights are popular with programmers. There is a good chance that the port is occupied by another server. This happens when instead of deploying one service, you deploy a bunch of them at once during development or testing.
+Port 8080 and other combinations of zeros and eights are popular with programmers. There is a good chance that the port is occupied by another server. This happens when instead of running one service, you start a bunch of them at once during development or testing.
 
 The code written by a programmer goes through several stages. These stages may differ between companies, but in general, they are development, testing, staging/pre-production, and production.
 
 \label{hardcode}
 
-At each stage, the application runs alongside other projects. The assumption that port 8080 is free anytime is fanciful. In developer slang, the situation is called "hardcode" or "nailed down." If there are nailed-down values in the code, they introduce problems into
-its life cycle. You cannot work on a project and test it at the same time.
+At each stage, the application runs alongside other projects. The assumption that port 8080 is free anytime is fanciful. In developer slang, the situation is called ``hardcode'' or ``nailed down.'' If there are nailed-down values in the code, they introduce problems into its life cycle. You cannot run two projects in parallel which declare port 8080 in their code.
 
 The application does not need to know the server port~--- information about this comes from the outside. In a simple case, this source is the config file. The program reads the port from it and starts the server exactly as it needs to do on a specific machine.
 
@@ -41,32 +40,32 @@ The application does not need to know the server port~--- information about this
 
 In more complex scenarios, the file is not compiled by a person but a special program~--- a configuration manager. The manager stores information about network topology, machine addresses, and database access parameters. On request, it generate a config file for a specific machine or network segment.
 
-The process of passing parameters to an application and accepting them is called configuration. This step in software development deserves close attention. When this step is well organized, the project can easily go through all the stages of production.
+The process of passing parameters to an application and accepting them is called configuration. This step in software development deserves close attention. When it is done well, the project easily goes through all the stages of production.
 
 \section{ Semantics}
 
 The purpose of a config is to control the program without changing the code. The need for it arises with the growth of the code base and infrastructure. If you have a small Python script, there is nothing wrong with opening it in notepad and changing a constant. At enterprises, such scripts have been working for years.
 
-But the more complex a company's infrastructure, the more constraints it has. The contemporary approach negates spontaneous changes in a project. You can't \verb|push| directly to the master branch; \verb|merge| is prohibited until two colleagues approve your work; an application will not hit the server until tests pass.
+But the more complex a company's infrastructure, the more constraints it has. Today's software development practices negate spontaneous changes in a project. You can't \code{git push} directly to the master branch; \code{git merge} is prohibited until at least two colleagues approve your work; an application will not reach the server until tests pass.
 
 This leads to the fact that even a sligh change in the code will take hours to get in production. Editing in configuration is cheaper than releasing a new version of the product. The rule follows from this: if you can make something a configurable option, do it right now.
 
 \index{features}
 \index{feature flags}
 
-Large companies practice what is called a feature flag. It is a boolean field that enables a whole layer of the application logic. For example, a new interface, a ticket processing system, or an improved chat. Of course, updates are tested in-house, but there is always a risk of \emph{something going wrong} in production. In this case, the flag is changed to false, and the server is restarted. Thus, the company will not only save time but also preserve its reputation.
+Large companies practice what is called a feature flag. It is a boolean field that enables a vast layer of the application logic. For example, a new interface, a ticket processing system, or an improved chat. Of course, updates are tested before releasing them, but there is always a risk of something going wrong in production. In this case, we set the flag to false and restart the service. Thus, the company will not only save time but also preserve its reputation.
 
 \label{feature-flags}
 
 \section{Configuration Cycle}
 
-An application looks for configuration at startup. The better an application is designed, the more of its parts rely on parameters. Configuration processing is a collection of steps, not a monolithic task. Let's list the most important of them.
+The better an application is designed, the more of its parts rely on parameters. That's why, on startup, the program immediately looks for configuration. Processing of configuration is a collection of steps, not a monolithic task. Let's list the most important of them.
 
 At the first stage, the program \textbf{reads the configuration}. Most often, they are environment variables or a file. Data in a file is stored in JSON, YAML, and other formats. An app contains code to parse a format and get the data. We'll look at the pros and cons of the well-known formats below.
 
 Environment variables are part of an operating system. Think of them as a global dictionary in memory. Every application inherits it when starting. Languages and frameworks offer functions to read variables into strings and maps.
 
-Files and environment variables complement each other. For example, an application reads data from a file but looks for the path to it in environment variables. Sometimes sensitive data such as passwords and API keys are omitted in the file. So, other programs, including spyware, won't see them. In this case, the application reads parameters from a file and secret information from variables.
+Files and environment variables complement each other. For example, an application reads data from a file but looks for its path in environment variables. There might be an opposite approach. Sensitive data such as passwords and API keys are omitted in the file. So, other programs, including spyware, won't see them. The application reads normal parameters from a file, but the secret information comes from variables.
 
 \index{tags}
 
@@ -385,7 +384,6 @@ The \verb|event| field is complex. It consists of a tuple of dates and an interv
 \index{spec!::ne-string}
 \index{spec!::\arr{}date}
 
-\mnoindent
 The \verb|::->date| spec converts a string to a date. In order not to parse it manually, let's take the \verb|read-instant-date| function from the \verb|clojure.instant| package. This function is format-tolerant and reads incomplete dates, for example, only a year. Let's wrap it in \verb|s/conformer|. We put \verb|::ne-string| in front to cut off the garbage.
 
 \index{functions!read-instant-date}
@@ -529,7 +527,6 @@ The termination of a JVM is too drastic. We should separate an error and respons
 \index{die-fn}
 \index{REPL}
 
-\mnoindent
 A better solution is to pass additional parameters to \texttt{load-config!}. Let's call one of them \verb|die-fn| (the "death function") that takes an exception. In production, it terminates the JVM, and in development, it writes a message to the REPL. Modify the loader to support the \verb|:die-fn| parameter. Consider default behavior if the parameter is not specified.
 
 The loader relies on the \verb|s/conform| spec for type inference. In the chapter on Spec, we looked at the case when \verb|s/conform| adds boolean tags and changes the data structure \page{jdbc-conform-warning}. If we replace the \verb|::db| spec with the \verb|::jdbc/db-spec| one, we get the same case. We have set our \verb|::db| version without \verb|s/or| macros in order not to distort the data.
@@ -1132,7 +1129,6 @@ $ source ENV_NEST
 $ lein repl
 \end{bash}
 
-\mnoindent
 Let's change the parsing of the environment. The \texttt{remap--key--nest} function takes a string key and returns a vector of its constituent parts (lexemes):
 
 \begin{clojure}
@@ -1844,7 +1840,6 @@ $ java -Dconf="/path/to/config.properties" -jar project.jar
 
 \fi
 
-\mnoindent
 The \verb|.properties| files are \verb|field=value| pairs, one per line. Fields are like domains: they are lexemes separated by dots. Lexemes are in descending order of priority:
 
 \begin{ini}
@@ -2177,7 +2172,6 @@ To check the configuration, pass the spec key to the \verb|load-config| paramete
 \index{die-fn}
 \index{death function}
 
-\mnoindent
 An options map takes the \verb|:die-fn| parameter. It is a function that will run if any stage fails. The function takes an exception and a label with a stage name.
 
 \index{channels!stderr}
