@@ -380,7 +380,7 @@ The \code{event} field is the most challenging one. It consists of a tuple of da
 \index{spec!::ne-string}
 \index{spec!::\arr{}date}
 
-The \code{s/tuple} spec validates if a collection has exact number of items. In our case, a vector of one or three dates won't pass it. The \verb|::->date| spec converts a string to a date. In order not to parse it manually, let's take the \verb|read-instant-date| function from the \verb|clojure.instant| package. This function is format-tolerant and reads incomplete dates, for example, only a year. Let's wrap it in \verb|s/conformer|. We put \verb|::ne-string| in front to cut off the garbage.
+The \code{s/tuple} spec validates if a collection has exact number of items. In our case, a vector of one or three dates won't pass it. The \verb|::->date| spec converts a string to a date. In order not to parse it manually, let's take the \verb|read-instant-date| function from the \verb|clojure.instant| package. This function is format-tolerant and reads incomplete dates, for example, only a year. Let's wrap it in \verb|s/conformer|. We put \verb|::ne-string| in front to cut off the non-date garbage.
 
 \index{functions!read-instant-date}
 
@@ -408,7 +408,7 @@ The \code{s/tuple} spec validates if a collection has exact number of items. In 
 \index{classes!Date}
 \index{clojure.core!compare}
 
-Let's describe range checking. It takes a couple of \verb|Date| objects and compares them. Dates cannot be compared using "greater than" or "less than" signs. To do this, use the \verb|compare| function, which will return -1, 0, and 1 for the cases of less/greater than or equal.
+Let's describe range checking. It takes a couple of \verb|Date| objects and compares them. Dates cannot be compared using ``greater than'' or ``less than'' signs. Instead, use the \code{compare} function, which will return -1, 0, and 1 for the less than, equal or greater than cases, respectively. We are interested in the first case when the result is negative.
 
 \begin{clojure}
 (s/def ::date-range
@@ -416,11 +416,7 @@ Let's describe range checking. It takes a couple of \verb|Date| objects and comp
     (neg? (compare date1 date2))))
 \end{clojure}
 
-At this point, you can call \verb|load-config!| and make sure that the output is
-a map with the proper types. The last step is \verb|set-config!| writes the map
-to the global \verb|CONFIG| variable. We chose an uppercase name for it to avoid
-shadowing it with the local \verb|config| variable. To substitute a variable,
-use \verb|alter-var-root|.
+The last step is \code{set-config!} that writes the map to the global \code{CONFIG} variable. We chose an uppercase name to avoid shadowing it with the local one \code{config}. To change a global variable, use \code{alter-var-root}.
 
 \index{clojure.core!alter-var-root}
 
@@ -478,45 +474,49 @@ At the start of the program, execute \texttt{(load-config!)} so that the configu
 
 \fi
 
-\subsection{Work on Bugs}
+If there is something wrong with your configuration, the program will terminate with a clear message.
 
-We have written a configuration loader. It is simple to maintain: every step is a function that is easy to modify.
-Our code does not pretend to be an industrial solution, but it is suitable for small projects.
+\subsection{Improvements}
 
-Its advantage is that the configuration can be re-read at any time. This is handy for development: modify the file and run \verb|load-config!| in the REPL. A new configuration appears in the \verb|CONFIG|.
+We have written a configuration loader. It is simple to maintain: every step is a function that is easy to modify. Our code does not pretend to be an industrial solution, but it is suitable for small projects.
+
+Its advantage is that the configuration can be re-read at any time. This is handy for development: modify the file and run \code{load-config!} in the REPL. A new configuration appears in the \code{CONFIG} variable.
 
 \index{functions!exit}
 
-The downside of the loader is that the code is bound to the \verb|exit| function, which terminates a JVM. In production, this is the right approach: you cannot continue if there is an error in the parameters. In development, a termination is more of a problem than a benefit: any error kills the REPL, and you need to start it again.
+The downside of the loader is that the code is bound to the \verb|exit| function, which terminates a JVM. In production, this is the right approach: you cannot continue if the parameters are misconfigured. In development, a termination is more of a problem than a benefit: any error kills the REPL, and you need to start it again.
 
-The termination of a JVM is too drastic. We should separate an error and response to it. The naive way is to call \verb|load-config!| as part of the \verb|exit| substitution. The function below will not terminate the JVM; it will only throw an exception with the text that was passed to \verb|exit|:
+The termination of a JVM is too drastic. We should separate an error and reaction to it. The naive way is to call \code{load-config!} while the \code{exit} is being redefined with a function that only throws an exception. Let's name it \code{fake-exit}. The code below will not terminate the JVM; it will only throw an exception with the text that we passed to \code{exit}:
 
 \ifnarrow
 
-\begin{clojure}
+\begin{english}
+  \begin{clojure}
+(defn fake-exit
+  [_ template & args]
+  (let [msg (apply format template args)]
+    (throw (new Exception msg))))
+
 (defn load-config-repl! []
-  (with-redefs
-    [exit
-     (fn [_ template & args]
-       (let [^String message
-             (apply format
-               template args)]
-         (throw
-           (new Exception message))))]
+  (with-redefs [exit fake-exit]
     (load-config!)))
-\end{clojure}
+  \end{clojure}
+\end{english}
 
 \else
 
-\begin{clojure}
+\begin{english}
+  \begin{clojure}
+(defn fake-exit
+  [_ template & args]
+  (let [message (apply format template args)]
+    (throw (new Exception ^String message))))
+
 (defn load-config-repl! []
-  (with-redefs
-    [exit (fn [_ template & args]
-            (let [^String message
-                  (apply format template args)]
-              (throw (new Exception message))))]
+  (with-redefs [exit fake-exit]
     (load-config!)))
-\end{clojure}
+  \end{clojure}
+\end{english}
 
 \fi
 
