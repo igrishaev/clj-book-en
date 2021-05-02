@@ -118,15 +118,15 @@ Let's store the configuration in a JSON file. We'll assume that the company has 
 
 \index{dates}
 
-Set the file path in the \verb|CONFIG_PATH| environment variable. From the file, we expect to get a server port, database parameters, and promotion date range. Dates should become \verb|java.util.Date| objects. The start date is strictly less than the end date.
+The path to the config file is specified by the \verb|CONFIG PATH| environment variable. From the file, we expect to get a server port, database parameters, and promotion date range. Dates should become \verb|java.util.Date| objects. The start date is strictly less than the end date.
 
-Let's write the finished map into the global variable \verb|CONFIG|. If an error occurs at one of the steps, we will show a message and exit the program.
+We will put the final map into the global variable \verb|CONFIG|. If an error occurs at one of the steps, we will show a message and exit the program.
 
 Let's start with the \verb|exit| helper function. It takes a completion code, a text, and formatting options. If the code is equal to zero, write the message to \verb|stdout|, otherwise~--- to \verb|stderr|.
 
 \index{functions!exit}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defn exit
@@ -153,7 +153,7 @@ Let's start with the \verb|exit| helper function. It takes a completion code, a 
 
 \fi
 
-Now let's move on to the loader. It is a set of steps, each of which takes the result of the previous one. The logic of each is easy to understand from its name. Type coercion and validation were combined into \verb|coerce-config| since, technically, this is the \verb|s/conform| call.
+Now let's move on to the loader. It is a set of steps, where each one takes the result of the previous one. The logic of the steps is easy to understand from their name. Namely, there are four actions: finding the path to the config, reading a file, infer data types, and setting a global variable. Type coercion and validation were combined into \verb|coerce-config| since, technically, this is the \verb|s/conform| call.
 
 \index{functions!load-config"!}
 
@@ -165,11 +165,11 @@ Now let's move on to the loader. It is a set of steps, each of which takes the r
       (set-config!)))
 \end{clojure}
 
-Now we will describe each step. The \verb|get-config-path| function reads an environment variable and checks to see if such a file exists on disk. If everything is okay, the function will return the file path; otherwise, it will call \verb|exit|:
+Now we will describe each step. The \verb|get-config-path| function reads an environment variable and checks if such a file exists on disk. If everything is okay, the function will return the file path; otherwise, it will call \verb|exit|:
 
 \index{files}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (import 'java.io.File)
@@ -199,12 +199,12 @@ Now we will describe each step. The \verb|get-config-path| function reads an env
 
 \fi
 
-The \verb|read-config-file| step reads the file by its path. The Cheshire library parses JSON. The \verb|parse-string| function returns data from a document string.
+The \code{read-config-file} step reads the file by its path. The Cheshire library parses JSON. Its \code{parse-string} function returns data from a document string.
 
 \index{libraries!Cheshire}
 \index{modules!cheshire.core}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require '[cheshire.core :as json])
@@ -243,11 +243,11 @@ The \verb|read-config-file| step reads the file by its path. The Cheshire librar
 \index{identity}
 \index{libraries!Expound}
 
-Type inference and validation are the most important steps. The application must not receive invalid parameters. The \verb|coerce-config| step passes data from the file through \verb|s/conform|. There is a danger of an exception when calling, so wrap it in \verb|pcall|~--- a safe call that will return an error and result \page{pcall}.
+Type inference and validation are the most important steps. The application must not receive invalid parameters. The \code{coerce-config} step passes data from the file through \code{s/conform}. There is a chance of getting an exception when calling it, so wrap it in \code{pcall}~--- a safe call that will return an error and the result \page{pcall}.
 
-If the result is \verb|::s/invalid|, generate an error report, and terminate the program. Let's take the Expound library for this report. The \verb|s/invalid?| function is a quick check for the \emph{identity} of the \verb|::s/invalid| keyword. Identity is faster than equality.
+If there was an exception, we print its message and terminate the program. The same applied to the case when we got \code{::s/invalid} keyword. The only difference is, we compose the message with the Expound library. We have to consider both cases because a failure and an incorrect result are different things.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require '[clojure.spec.alpha :as s])
@@ -312,10 +312,9 @@ Now, only a spec is missing. Let's open the configuration and examine its struct
 }
 \end{json}
 
-\noindent
-Describe the spec from top to bottom. It is a map with keys:
+Describe the spec from top to bottom. It is a map with the keys:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (s/def ::config
@@ -343,7 +342,7 @@ The server port is a combination of two predicates: a number check and a range c
 
 \index{spec!int-in}
 
-We meet number and range checks frequently, so Spec offers the \verb|s/int-in| macro for this case. Please note that the right border is of an exclusive type, i.e., it is not in the interval. The mathematical notation looks like this \verb|[1024, 65535)|.
+We meet number and range checks frequently, so Spec offers the \code{s/int-in} macro for this case. Please note that the right border is exclusive, meaning that it belongs to the interval. The mathematical notation for such an interval is written like \code{[1024, 65535)}.
 
 \begin{clojure}
 (s/def ::server_port
@@ -352,8 +351,7 @@ We meet number and range checks frequently, so Spec offers the \verb|s/int-in| m
 
 \index{spec!::ne-string}
 
-\noindent
-Database connection. As a reminder, \verb|::ne-string| means a non-empty string.
+Now let's describe the database connection. There won't be any problems with it, because all its fields are strings. For more rigor we use \code{::ne-string} to prevent empty lines \page{ne-string}. The database engine is specified as a enumeration of strings with the only item <<mysql>>. This will eliminate extraneous values.
 
 \begin{clojure}
 (s/def :db/dbtype   #{"mysql"})
@@ -368,7 +366,7 @@ Database connection. As a reminder, \verb|::ne-string| means a non-empty string.
                    :db/password]))
 \end{clojure}
 
-The \verb|event| field is complex. It consists of a tuple of dates and an interval check:
+The \code{event} field is the most challenging one. It consists of a tuple of dates and an interval check:
 
 \begin{clojure}
 (s/def ::event
@@ -382,11 +380,11 @@ The \verb|event| field is complex. It consists of a tuple of dates and an interv
 \index{spec!::ne-string}
 \index{spec!::\arr{}date}
 
-The \verb|::->date| spec converts a string to a date. In order not to parse it manually, let's take the \verb|read-instant-date| function from the \verb|clojure.instant| package. This function is format-tolerant and reads incomplete dates, for example, only a year. Let's wrap it in \verb|s/conformer|. We put \verb|::ne-string| in front to cut off the garbage.
+The \code{s/tuple} spec validates if a collection has exact number of items. In our case, a vector of one or three dates won't pass it. The \verb|::->date| spec converts a string to a date. In order not to parse it manually, let's take the \verb|read-instant-date| function from the \verb|clojure.instant| package. This function is format-tolerant and reads incomplete dates, for example, only a year. Let's wrap it in \verb|s/conformer|. We put \verb|::ne-string| in front to cut off the garbage.
 
 \index{functions!read-instant-date}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require '[clojure.instant :as inst])
@@ -426,7 +424,7 @@ use \verb|alter-var-root|.
 
 \index{clojure.core!alter-var-root}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (def CONFIG nil)
@@ -453,7 +451,7 @@ At the start of the program, execute \texttt{(load-config!)} so that the configu
 
 \index{JDBC!query}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require
@@ -493,7 +491,7 @@ The downside of the loader is that the code is bound to the \verb|exit| function
 
 The termination of a JVM is too drastic. We should separate an error and response to it. The naive way is to call \verb|load-config!| as part of the \verb|exit| substitution. The function below will not terminate the JVM; it will only throw an exception with the text that was passed to \verb|exit|:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defn load-config-repl! []
@@ -618,7 +616,7 @@ BAR=99
 
 Programs read parameters from environment variables. A PostgreSQL client distinguishes between two dozen variables: \verb|PGHOST|, \verb|PGDATABASE|, \verb|PGUSER|, and others. Environment variables take precedence over \verb|--host|, \verb|--user|, and similar parameters. If you execute the following in the current shell:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{bash}
 $ export PGHOST=host.com \
@@ -705,7 +703,7 @@ Environment variables do not work with hierarchy. They are a flat set of keys an
 \index{nesting}
 \index{collections!nesting}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 ;; so-so
@@ -752,7 +750,7 @@ Environment variables do not work with hierarchy. They are a flat set of keys an
 
 Nested variables are read differently on different systems. For example, a single underscore separates lexemes but does not change the structure. Double underscore stands for nesting:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 DB_NAME=book
@@ -899,7 +897,7 @@ Clojure is a hosted platform, so the language does not offer access to system re
 
 The static \verb|getenv| method will return either one variable by name or the entire map if no name is specified.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 ;; a single variable
@@ -1024,7 +1022,7 @@ We'll drop the first symbol of the shape.  That leaves a list, where the odd ite
 
 \index{spec!spec\arr{}keys}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defn spec->keys
@@ -1162,7 +1160,7 @@ The traversal function does not call \verb|assoc|, but \verb|assoc-in|, which re
 
 The code below will return the parameters grouped as expected. Here is a subset of them:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (-> (System/getenv)
@@ -1281,7 +1279,7 @@ $ cat config.tpl.json | envsubst
 \noindent
 The substitution was successful (the render result is in Listing \ref{fig:json-render}). To write the result to a file, add an output statement to the end:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{bash}
 $ cat config.tpl.json |
@@ -1308,7 +1306,7 @@ The following techniques make an application read parameters from file and envir
 
 Suppose we wrote the main parameters in a file, and the password for the database comes from the environment. Since such solutions are team-wide, agree among yourselves that the \verb|password| field contains not a password, but a variable name, for example, \verb|"DB_PASS"|. Let's write a spec that displays the variable value by name:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (s/def ::->env
@@ -1362,7 +1360,7 @@ Add the \verb|#env| tag that will return the value of the variable by name. The 
 
 \label{tag-env}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (defn tag-env
@@ -1397,7 +1395,7 @@ Add the \verb|#env| tag that will return the value of the variable by name. The 
 \noindent
 Now we'll read the EDN line with the new tag:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require '[clojure.edn :as edn])
@@ -1455,7 +1453,7 @@ db:
 
 Now we'll include the library and read the file. In place of the tags, we get the environment values:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require '[yummy.config :as yummy])
@@ -1513,7 +1511,7 @@ But JSON does not provide an opportunity to comment. At first glance, this is a 
 
 Developers have come up with tricks to get around this limitation in JSON.  For example, put the same name field in front of the one to which the comment relates:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{json}
 {
@@ -1548,7 +1546,7 @@ JSON syntax is noisy: it requires quotes, colons, and commas where other formats
 
 Compare data in JSON and YAML (on the right). The YAML entry is shorter and visually better perceived:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{json}
 {
@@ -1651,7 +1649,7 @@ YAML allows you to write text across multiple lines. It is easier to read and co
 
 \begin{listing}[ht!]
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{yaml}
 description: |
@@ -1702,7 +1700,7 @@ phrases:
 
 Because of the colon in the last line, the parser will think it is a nested map. As a result, we get the wrong structure:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 {:phrases
@@ -1739,7 +1737,7 @@ A tag starts with a hash character. The standard offers two tags by default: \ve
 
 Here's an example with different types, collections, and tags:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 {:user/banned? false
@@ -1822,7 +1820,7 @@ Properties are Java machine variables, similar to the JVM environment. When load
 \index{JVM!Jar}
 \index{JVM!properties}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{bash}
 $ java \
@@ -1871,7 +1869,7 @@ For delicate work, Cprop offers the \verb|cprop.source| module. Its \verb|from-e
 
 The \verb|:merge| key merges the config with any source. The former holds a sequence of expressions that will return a map. Here is a great example from documentation:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (load-config
@@ -1920,7 +1918,7 @@ The library casts types its way. If the string contains only digits, it is conve
 
 The \verb|read-config| function reads an EDN file or resource:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require
@@ -1953,7 +1951,7 @@ Tags are the main point in Aero, so let's take a look at the main ones. The fami
 
 The \verb|#envf| tag formats a string using environment variables. Let's say the connection to the database consists of separate fields, but you prefer the JDBC URI, a long string that looks like a web address. In order not to repeat, the address is calculated from the original fields:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 {:db-uri
@@ -1982,7 +1980,7 @@ The \verb|#profile| tag allows you to find the value by the \emph{profile}. The 
 
 The example below shows how to find the base name by profile. Without a profile, we get the \verb|"book"| name, but for \verb|:test|, it becomes \verb|"book_test"|:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 {:db
@@ -2026,7 +2024,7 @@ The \verb|#ref| tag refers to any part of the configuration file. It is a vector
 \noindent
 When reading a file, the link resolves to the value:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 {:db {:user "ivan"}
@@ -2064,7 +2062,7 @@ A fully featured loader does more than just read parameters. The cycle includes 
 
 The file path either the parameters specify, or the library searches for it according to special rules. Here's an option when the path is explicitly set:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (require
@@ -2116,7 +2114,7 @@ states:
 \noindent
 Here is the result:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 {:states [:task/pending
@@ -2134,7 +2132,7 @@ Here is the result:
 
 The \verb|!uuid| tag is similar to the \verb|#uuid| one for EDN; it returns the \verb|java.util.UUID| object from a string:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{yaml}
 system-user: !uuid
@@ -2176,7 +2174,7 @@ An options map takes the \verb|:die-fn| parameter. It is a function that will ru
 
 If \verb|:die-fn| is not specified, Yummy will call the default handler. It prints the text to \verb|stderr| and exits the JVM with code 1. During the development phase, we do not want to terminate the REPL due to a config error. In an interactive session, our \verb|die-fn| only prints the text and the error:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (load-config
@@ -2206,7 +2204,7 @@ In production mode, write the exception to the log and exit the program.
 
 \index{logging}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{clojure}
 (load-config
