@@ -285,7 +285,8 @@ If there was an exception, we print its message and terminate the program. The s
 
       (s/invalid? result)
       (let [report (expound/expound-str ::config config)]
-        (exit 1 "Invalid config values: %s %s" \newline report))
+        (exit 1 "Invalid config values: %s %s"
+              \newline report))
 
       :else result)))
 \end{clojure}
@@ -638,9 +639,9 @@ Pay attention to the \verb|PG| prefix. It prevents overwriting someone else's \v
 
 \section{Config in the Environment}
 
-We can set config with environment variables. Each language offers functions to read variables into strings or a map. Let's look at the pros and cons of this approach.
+Each language provides functions to read a single variable to a string or get all of them as a map. It means we can set config with environment variables. Let's look at the pros and cons of this approach.
 
-The application does not access the disk while reading these variables since the environment is in memory. It doesn't matter that memory is faster than disk; you never tell between 0.01sec and 0.001sec. But an application that does not depend on files is more autonomous and, therefore, easier to maintain.
+The application does not access the disk while reading the environment since it is located in memory. We're not aiming at the performance benefits, though. Yes, memory is much faster than disk, but you will never notice the difference between 0.01sec and 0.001sec. Our main point is that an application that does not depend on files is more autonomous and easier to maintain.
 
 Sometimes a configuration file is unexpectedly located in a different folder, and an application cannot find it, or worse, the app starts up with an old file version. This makes things slower and more confusing.
 
@@ -650,16 +651,16 @@ Sometimes a configuration file is unexpectedly located in a different folder, an
 
 Storing passwords and keys in variables is safer than in files. These data can be read in files by other programs, including malware. By mistake, a file can get into the repository and remain in history. Some scripts search open repositories for keys to cloud platforms and wallets (and sometimes find them, unfortunately).
 
-Even if the file belongs to a user, others can get read access. Environment variables are ephemeral: they live only in operating system memory. One user cannot read another's variables~--- this is a limitation at the operating system level.
+Even if a file belongs to a user, others can get read access. Environment variables are ephemeral: they live only in operating system memory. One user cannot read another's variables~--- this is a strict limitation at the operating system level.
 
 \index{containers}
 \index{virtualization}
 
-The industry is moving from files to virtualization. If earlier we copied files via FTP, today the application is running from images. They are archives that contain the code and its environment. Unlike a regular archive, we cannot change an image. To update a file in the image, you need to rebuild it, which complicates the process.
+The industry is moving from files to virtualisation. If earlier we copied files via FTP, today applications are running from images. They are archives that contain the code and its environment. Unlike a regular archive, we cannot change an image. To update a file in the image, you need to rebuild it, which complicates the process.
 
 \index{Docker}
 
-On the contrary, virtualization is tolerant of the environment variables. They are specified in the parameters when you start the image. The same image is used with different variables, so a new build is not required. The more options you can set with variables, the more convenient it is to work with the image. In the example below, the PostgreSQL server starts with a ready-to-use database and a user:
+On the contrary, virtualisation is loyal to the environment variables. They are specified in the parameters when you start the image. The same image is used with different variables, so a new build is not required. The more options you can set with variables, the more convenient it is to work with the image. In the example below, the PostgreSQL server starts with a ready-to-use database and a user:
 
 \begin{bash}
 $ docker run \
@@ -671,7 +672,7 @@ $ docker run \
 
 \index{sites!12factor.net}
 
-The \footurl{The Twelve-Factor App}{https://12factor.net}[12-Factor App], a set of rules for developing robust applications, says "Store config in the environment." The third point in this document is about config. The author mentions the same advantages of variables that we have looked at~--- file independence, security, and support on all platforms.
+The \footurl{Twelve-Factor App}{https://12factor.net}[12-Factor App] is a famous set of rules for developing robust applications. It also prescribes storing configuration in the environment. The author mentions the same advantages of variables that we have looked at~--- file independence, security, and support on all platforms.
 
 \section{Disadvantages of the Environment}
 
