@@ -63,7 +63,7 @@ The better an application is designed, the more of its parts rely on parameters.
 
 At the first stage, the program \textbf{reads the configuration}. Most often, they are environment variables or a file. Data in a file is stored in JSON, YAML, and other formats. An app contains code to parse a format and get the data. We'll look at the pros and cons of the well-known formats below.
 
-Environment variables are part of an operating system. Think of them as a global dictionary in memory. Every application inherits it when starting. Languages and frameworks offer functions to read variables into strings and maps.
+Environment variables are part of an operating system. Think of them as a global map in memory. Every application inherits it when starting. Languages and frameworks offer functions to read variables into strings and maps.
 
 Files and environment variables complement each other. For example, an application reads data from a file but looks for its path in environment variables. There might be an opposite approach. Sensitive data such as passwords and API keys are omitted in the file. So, other programs, including spyware, won't see them. The application reads normal parameters from a file, but the secret information comes from variables.
 
@@ -523,24 +523,24 @@ The termination of a JVM is too drastic. We should separate an error and reactio
 \index{die-fn}
 \index{REPL}
 
-A better solution is to pass additional parameters to \texttt{load-config!}. Let's call one of them \verb|die-fn| (the "death function") that takes an exception. In production, it terminates the JVM, and in development, it writes a message to the REPL. Modify the loader to support the \verb|:die-fn| parameter. Consider default behavior if the parameter is not specified.
+A better solution is to pass additional parameters to \texttt{load-config!}. Let's call one of them \verb|die-fn| (the ``death function'') that takes an exception. In production, it terminates the JVM, and in development, it writes a message to the REPL. Modify the loader to support the \verb|:die-fn| parameter. Consider default behavior if the parameter is not specified.
 
-The loader relies on the \verb|s/conform| spec for type inference. In the chapter on Spec, we looked at the case when \verb|s/conform| adds boolean tags and changes the data structure \page{jdbc-conform-warning}. If we replace the \verb|::db| spec with the \verb|::jdbc/db-spec| one, we get the same case. We have set our \verb|::db| version without \verb|s/or| macros in order not to distort the data.
+Another point that addresses the issue of inferring types. The loader relies on the \verb|s/conform| function for type inference. In the chapter on Spec, we looked at the case when \verb|s/conform| adds logical tags and changes the data structure \page{jdbc-conform-warning}. If we replace our custom \verb|::db| spec with the \verb|::jdbc/db-spec| one, we will get the same case. We have set our database spec without \verb|s/or| macros in order not to distort the data.
 
 \index{tags}
 
-In another way, you can coerce types using \emph{tags}. We will discuss this technique in the following sections of this chapter.
+In another way, you can coerce types using tags. We will discuss this technique in the following sections of this chapter.
 
-\section{More Details on Environment Variables}
+\section{More on Environment Variables}
 
 \index{environment}
 \index{variables!environment}
 
-A loader reads data from a file, taking only a small part — the file path — from environment variables. Let's modify the loader: let it read all data from environment variables without using files. Let's talk about variables in isolation from the language to assess the benefits of this approach.
-
-Environment variables are sometimes called ENV for short, for example, when reading a file of the same name or working with them in the code. This is a fundamental property of the operating system. Think of variables as a global dictionary that is being filled in during computer startup. The map contains the main system parameters: locale, home directory, a list of paths where the system looks for programs, and much more.
+A loader reads data from a file, taking only a small part~--- the file path~--- from environment variables. Let's modify the loader: now it reads all data from the environment without using files. To know better the advantages of the new approach, let's discuss it first in isolation from any specific language.
 
 \index{utilities!printenv}
+
+Environment variables are sometimes called ENV for short, for example, when reading a file of the same name or working with them in the code. This is a fundamental property of the operating system. Think of variables as a global map that is populated at a computer startup. The map contains the main system parameters: locale, home directory, a list of paths where the system looks for programs, and much more.
 
 To see the current variables, run \verb|env| or \verb|printenv| in a terminal. The pairs \verb|NAME=value| will appear on the screen. Variable names are in uppercase to make them stand out and emphasize their priority. Most systems are case sensitive, so \verb|home| and \verb|HOME| are different variables. Spaces and hyphens are not allowed; lexemes are separated by underscores. Here's a snippet of \verb|printenv|:
 
@@ -553,12 +553,12 @@ TERM_PROGRAM=iTerm.app
 
 Each process receives a copy of this map. A process can add or remove a variable, but the changes are visible only to it and its descendants. A child process inherits the variables from its parent.
 
-\subsection{ Local and Global Variables }
+\subsection{Local and Global Variables}
 
 \index{shell}
 \index{variables!environment}
 
-Distinguish between \emph{environment} and \emph{shell} variables; they are also global and local variables. Newbies often confuse them. Run the command in the terminal:
+Distinguish between environment and shell variables; they are also called global and local variables. Newbies often confuse them. Run the command in the terminal:
 
 \begin{bash}
 $ FOO=42
@@ -586,7 +586,7 @@ We get an empty string because the child does not have such a variable. Run \ver
 \index{variables!export}
 \index{variables!shell}
 
-The \verb|export| command puts the variable into the environment. Printenv sees the variable set this way:
+The \verb|export| command puts a variable into the environment. Printenv sees the variable set this way:
 
 \begin{bash}
 $ export FOO=42
@@ -595,7 +595,7 @@ FOO=42
 \end{bash}
 
 \noindent
-The child processes also see:
+The child processes also see it:
 
 \begin{bash}
 $ sh
@@ -610,23 +610,23 @@ $ BAR=99 printenv | grep BAR
 BAR=99
 \end{bash}
 
-\verb|Printenv| generates a new process that has access to the \verb|BAR| variable. If we print \verb|$ BAR| once again, we'll get an empty string.
+\verb|Printenv| generates a new process that has access to the \verb|BAR| variable. If we print \verb|$BAR| once again, we'll get an empty string.
 
 \index{databases!PostgreSQL}
 
-Programs read parameters from environment variables. A PostgreSQL client distinguishes between two dozen variables: \verb|PGHOST|, \verb|PGDATABASE|, \verb|PGUSER|, and others. Environment variables take precedence over \verb|--host|, \verb|--user|, and similar parameters. If you execute the following in the current shell:
+Programs often read parameters from environment variables. A PostgreSQL client distinguishes between two dozen variables: \verb|PGHOST|, \verb|PGDATABASE|, \verb|PGUSER|, and others. Environment variables take precedence over \verb|--host|, \verb|--user|, and similar parameters. If you execute the following in the current shell:
 
 \ifnarrow
 
 \begin{bash}
 $ export PGHOST=host.com \
-    PGDATABASE=project,
+    PGDATABASE=project
 \end{bash}
 
 \else
 
 \begin{bash}
-$ export PGHOST=host.com PGDATABASE=project,
+$ export PGHOST=host.com PGDATABASE=project
 \end{bash}
 
 \fi
