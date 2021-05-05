@@ -686,7 +686,7 @@ Variables do not support types: any value is text. Type inference is up to you. 
 db_port = int(os.environ["DB_PORT"])
 \end{python}
 
-When there are more than two variables, the code becomes ugly. Specify a map where a key is a variable name and value is an output function. The special code traverses the map and fills up the result. For the sake of shortness, let's skip error catching:
+When there are more than two variables, the code becomes ugly. Specify a map where a key is a variable name and value is a function to transform a text value. The special code traverses the map and fills up the result. For the sake of shortness, let's skip error handling:
 
 \begin{python}
 import os
@@ -697,7 +697,7 @@ for (env, fn) in env_mapping.iteritems():
     result[env] = fn(os.environ[env])
 \end{python}
 
-The approach is also valid for other languages. In Clojure, a spec does this.
+The approach is also valid for other languages: less code, more of the declarative part. In Clojure, we usually transform the data with spec.
 
 Environment variables do not work with hierarchy. They are a flat set of keys and values that is not always suitable for config. The more parameters the configuration has, the more often they are grouped by meaning. Let's say ten parameters define the connection to the database. We'll take them out to the child map in order not to put a prefix in front of each.
 
@@ -807,7 +807,7 @@ An array is specified in square brackets or separated by commas. When parsing on
 \index{formats!JSON}
 \index{formats!YAML}
 
-The JSON and YAML formats set a clear standard for how to describe collections. But there is no single convention for environment variables. The situation is complicated when a highly nested parameter is expected, such as a list of dictionaries. Environment variables do not fit well with structure.
+The JSON and YAML formats set a clear standard for how to describe collections. But there is no single convention for environment variables. The situation gets more complicated when a highly nested parameter is expected, such as a list of dictionaries. Environment variables do not fit well with such a structure.
 
 The development reveals one more trade-off of these variables: they are read-only on some systems. That is ideologically true, but it forces you to re-enable the REPL for every configuration change, whereas the file only needs to be changed and read again.
 
@@ -815,7 +815,7 @@ The development reveals one more trade-off of these variables: they are read-onl
 
 \index{files!environment variables}
 
-When there are many variables, entering them manually via \verb|export| is tiresome. In such situations, we move the variables to a file called the \emph{env} configuration. Technically, it is a shell script, but the less scripting capabilities it has, the better. Ideally, such a file holds only \verb|NAME=value| pairs, one for each line. Let's just call it \verb|ENV| without extension.
+When there are many variables, entering them manually via \verb|export| is tiresome. In such situations, we move the variables to a file called the env-configuration. Technically, it is a shell script, but the less scripting capabilities it has, the better. Ideally, such a file holds only \verb|NAME=value| pairs, one for each line. Let's just call it \verb|ENV| without extension.
 
 \begin{bash}
 DB_NAME=book
@@ -823,7 +823,7 @@ DB_USER=ivan
 DB_PASS=****
 \end{bash}
 
-To read the variables into the shell, call \verb|source <file>|. It is a \verb|bash| command that will execute the script in the \emph{current} session. The shorthand for this often-used command is a dot: \verb|. <file>|. The script will add variables to the shell, and you will see them after \verb|source|. This is an important difference from \verb|bash <file>| command, which will execute the script in a new shell, and you won't see any changes in the current one.
+To read the variables into the shell, call \verb|source <file>|. It is a \verb|bash| command that will execute the script in the current session. The shorthand for this often-used command is a dot: \verb|. <file>|. The script will add variables to the shell, and you will see them after \verb|source|. This is an important difference from \verb|bash <file>| command, which will execute the script in a new shell, and you won't see any changes in the current one.
 
 \begin{bash}
 $ source ENV
@@ -841,7 +841,7 @@ $ printenv | grep DB
 # exit 1
 \end{bash}
 
-You can solve the problem two ways. The first is to open the file and place it before each \verb|export| pair. Then the \verb|source| command of this file will add variables to the environment:
+You can solve the problem in two ways. The first is to open the file and place the \code{export} expression before each pair. Then the \verb|source| command of this file will add variables to the environment:
 
 \begin{bash}
 $ cat ENV
@@ -856,9 +856,9 @@ DB_USER=ivan
 DB_PASS=****
 \end{bash}
 
-The disadvantage of this method is that the script logic appears in the file. If you do not put \verb|export| before a variable, the application will not read it.
+The disadvantage of this method is that now the file has become a script. If you do not put \verb|export| before a variable, the application will not read it.
 
-The second way is based on the \verb|-a| (\textbf{a}llexport) parameter of the current shell. When it is set, the local variable is sent to the environment. Before reading variables from a file, set the flag to "true" and then to "false" again.
+The second way is based on the \verb|-a| (\textbf{a}llexport) parameter of the current shell. When it is set, the local variable is sent to the environment as well. Before reading variables from a file, set the flag to ``true'' and then to ``false'' again.
 
 \begin{bash}
 $ set -a
@@ -868,11 +868,11 @@ $ printenv | grep DB
 $ set +a
 \end{bash}
 
-The \verb|set| statement is counterintuitive: the parameter is \emph{enabled} with a minus and \emph{disabled} with a plus. This is an exception to remember.
+The \verb|set| statement is counterintuitive: the parameter is enabled with a minus and disabled with a plus. This is an exception to remember.
 
 If you read a variable that is already in the environment, it will replace the previous value. This way, files with overrides appear. If you need particular settings for your tests, you don't have to copy the entire file. Create a file with the fields to be replaced and execute it after the main one.
 
-Let the test settings differ by the base name. The \verb|ENV| file contains the main parameters, and in \verb|ENV_TEST| we put the new value \verb|DB_NAME=test|. Let's read both files and see how it turned out:
+Let the test settings of our program differ by the base name. The \verb|ENV| file contains the main parameters, and in \verb|ENV_TEST| we put a single pair \verb|DB_NAME=test|. Let's read both files and see how it turned out:
 
 \begin{bash}
 $ set -a
