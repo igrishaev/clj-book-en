@@ -888,13 +888,13 @@ You can notice that using ENV files is contrary to the statement above. We said 
 
 \index{DevOps}
 
-The difference between JSON and ENV files is what reads them. In the first case, an application does it, and in the second case, an operating system. A file is in a strictly defined directory, and environment variables are available from everywhere. We will free the application from the code that looks for and reads the file. At the same time, we will make it easier for our DevOps colleagues: they set variables differently depending on the tool (shell, Docker, Kubernetes). This makes the environment a single point of exchange for settings.
+The difference between JSON and ENV files is what reads them. In the first case, an application does it, and in the second case, an operating system. A file is located in a strictly defined directory, whereas environment variables are available from everywhere. We will free the application from the code that looks for and reads the file. At the same time, we will make it easier for our DevOps colleagues: they set variables differently depending on the tool (shell, Docker, Kubernetes). This makes the environment the main exchange point of all settings.
 
 \section{ Environment Variables in Clojure}
 
 \index{classes!System}
 
-Clojure is a hosted platform, so the language does not offer access to system resources. There is no function for reading environment variables in its main module. Let's get them from the \verb|java.lang.System| class. You don't need to import the class: it is available in any namespace.
+Clojure is a hosted platform, so the language does not provide access to system resources. There is no function for reading environment variables in its core module. Let's get them from the \verb|java.lang.System| class. You don't need to import the class: it is available in any namespace.
 
 The static \verb|getenv| method will return either one variable by name or the entire map if no name is specified.
 
@@ -926,11 +926,11 @@ The static \verb|getenv| method will return either one variable by name or the e
 
 \fi
 
-In the second case, we got not a Clojure collection but a Java one. It is an immutable \verb|Map| version, so the variables cannot be changed after the JVM has started.
+In the second case, we got not a Clojure collection but a Java one. It is an instance of \code{UnmodifiableMap} class, so the variables cannot be changed after the JVM has started.
 
-Let's cast the map to the Clojure type to make it easier to work with it. At the same time, we will fix the keys: at the moment, these are uppercase and underscore strings. Clojure uses keywords and kebab-case: lowercase with hyphens.
+Let's cast the map to the Clojure type to make it easier to work with it. At the same time, we will fix the keys: at the moment, these are uppercase strings with underscores. Clojure uses keywords and kebab-case: lowercase with hyphens.
 
-Let's write a function to convert the key:
+Let's write a function to convert a single key:
 
 \begin{clojure}
 (require '[clojure.string :as str])
@@ -953,7 +953,7 @@ and make sure that it works correctly:
 \index{functions!remap-env}
 \index{functions!remap-key}
 
-The \verb|remap-env| function traverses the Java map and returns its Clojure version with usual keys:
+The \verb|remap-env| function traverses the Java map and returns its Clojure version with keywords for keys:
 
 \begin{clojure}
 (defn remap-env [env]
