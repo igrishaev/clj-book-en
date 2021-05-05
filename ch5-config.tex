@@ -1076,7 +1076,7 @@ Let's rewrite reading variables into the map. In the last step, we select only t
         (select-keys cfg-keys))))
 \end{clojure}
 
-The advantage is that we managed to avoid repetitions. If a new field appears in \verb|::config|, the \verb|spec->keys| function will pick it up.
+The advantage is that we managed to avoid repetitions. If a new field appears in \verb|::config|, the \verb|spec->keys| function will automatically pick it up.
 
 \subsection{Environment Loader}
 
@@ -1093,16 +1093,13 @@ Make it so the data source can be specified using a parameter. For example, \ver
 
 \index{collections!merger}
 
-An even more difficult problem is how to read both sources and combine them? Is
-the order important, and how to ensure it? How to combine maps asymmetrically,
-that is, when the second map only \emph{replaces} the fields of the first one
-but does not add new fields?
+An even more difficult problem is how to read both sources and combine them? Is the order important, and how to ensure it? How to combine maps asymmetrically, that is, when the second map only replaces the fields of the first one but does not add new fields?
 
 \subsection{Inference of Structure}
 
 \index{structure}
 
-It rarely happens that a configuration is a flat dictionary. Parameters related by their meaning are placed in nested dictionaries; for example, server and database fields are separate. When the settings are in a group, they are easier to maintain. A good example is splitting config into pieces using \spverb|{keys [db server]}|. Each component of the system accepts the part of the same name as a mini config.
+It rarely happens that a configuration is a flat dictionary. Parameters related by their meaning are placed in nested dictionaries; for example, server and database fields are separate. When the settings are in a group, they are easier to maintain. A good example is splitting config into pieces using \spverb|{:keys [db server]}| syntax. Each component of the system accepts the part of the same name as a mini config.
 
 Let's improve our loader: we will teach it to read nested variables. Let's agree that double underscore means a level change. We'll put the following variables
 in the \verb|ENV_NEST| file:
@@ -1145,8 +1142,7 @@ Let's change the parsing of the environment. The \texttt{remap--key--nest} funct
 \index{clojure.core!assoc-in}
 \index{clojure.core!reduce}
 
-\noindent
-The traversal function does not call \verb|assoc|, but \verb|assoc-in|, which returns a nested structure:
+Now we change the function that builds a map. For each name, we will get a vector of lexemes. Let's add a value with \code{assoc-in} that produces a nested structure.
 
 \begin{clojure}
 (defn remap-env-nest
@@ -1197,12 +1193,12 @@ Think about setting an array in a variable. How to separate array elements? When
 
 \index{configuration manager}
 
-At this point, you might decide that config in a file is a bad idea. However, don't rush to rewrite your code with environment variables. In practice, \emph{hybrid} models are used combining both approaches. The application reads basic parameters from a file, but passwords and access keys from the environment.
+At this point, you might decide that config in a file is a bad idea. However, don't rush to rewrite your code with environment variables. In practice, \emph{hybrid} models are used combining both approaches. The application reads basic parameters from a file, but passwords and API keys from the environment.
 
 \index{utilities!gettext}
 \index{utilities!envsubst}
 
-Let's look at how to use both files and environments. A naive solution doesn't require you to write any code: it runs on command-line utilities. The \verb|envsubst| program in the GNU gettext package provides a simple templating system. To install \verb|gettext|, run the command in a terminal:
+Let's look at how to use both files and environments. A naive solution doesn't require you to write any code: it runs on command-line utilities. The \verb|envsubst| program from the ``GNU gettext'' package provides a simple templating system. To install \verb|gettext|, run the command in a terminal:
 
 
 \begin{bash}
@@ -1210,12 +1206,12 @@ $ <manager> install gettext,
 \end{bash}
 
 \noindent
-, where \verb|<manager>| is your system's package master (\verb|brew|, \verb|apt|, \verb|yum|, and others).
+, where \verb|<manager>| is your system's package utility (\verb|brew|, \verb|apt|, \verb|yum|, and others).
 
 \index{channels!stdin}
 \index{templates}
 
-The template text comes from \verb|stdin|, and the environment variables are the context. The utility replaces the \verb|$VAR_NAME| expressions with the values of the same name variable. Let's put the template into the \verb|config.tpl.json| file. The "tpl" part means a template.
+The template text comes from \verb|stdin|, and the environment variables are the context. The utility replaces the \verb|$VAR_NAME| expressions with the values of the same name variable. Let's put the template into the \verb|config.tpl.json| file. The ``tpl'' part means a template.
 
 \begin{json/lines}
 {
@@ -1234,13 +1230,13 @@ The template text comes from \verb|stdin|, and the environment variables are the
 \end{json/lines}
 
 \noindent
-Note that the server port is not quoted because it is a number \coderef{2}. Let's put the variables into the \verb|ENV_TPL| file:
+Note that the server port is not quoted because it is a number \coderef{2}. Now we create an env \verb|ENV_VARS| file with the following content:
 
 \begin{bash}
-$ cat ENV_TPL
+$ cat ENV_VARS
 DB_NAME=book
 DB_USER=ivan
-DB_PASS='*(&fd}A53z#$!'
+DB_PASS='secret123'
 HTTP_PORT=8080
 EVENT_START='2019-07-05T12:00:00'
 EVENT_END='2019-07-12T23:59:59'
@@ -1250,11 +1246,11 @@ EVENT_END='2019-07-12T23:59:59'
 Let's read them and render the template:
 
 \begin{bash}
-$ source ENV_TPL
+$ source ENV_VARS
 $ cat config.tpl.json | envsubst
 \end{bash}
 
-\begin{listing}[ht!]
+The substitution was successful:
 
 \begin{json}
 {
@@ -1272,13 +1268,7 @@ $ cat config.tpl.json | envsubst
 }
 \end{json}
 
-\caption{Config after variable substitution}
-\label{fig:json-render}
-
-\end{listing}
-
-\noindent
-The substitution was successful (the render result is in Listing \ref{fig:json-render}). To write the result to a file, add an output statement to the end:
+To write the result to a file, add an output statement to the end:
 
 \ifnarrow
 
@@ -1297,15 +1287,15 @@ $ cat config.tpl.json | envsubst > config.ready.json
 
 The \verb|envsubst| method seems primitive, but it is useful in practice. The template frees you from worries about the structure: variables are in the right places, so no trouble with nesting.
 
-Sometimes an application requires multiple config files, including one for infrastructure. Nginx needs a web server port for proxying. In Sendmail, you need to specify the same email address as in the application. It goes without saying that there should be a single data source, and a template render can be such a source.
+Sometimes an application requires multiple config files, including one for infrastructure. You need to specify the same parameter in different files to make the programs work in concert. For example, Nginx requires a web server port for proxying. In Sendmail, you need to specify the same email address as in the application. It goes without saying that there should be a single data source, and a template render can be such a source.
 
 The \verb|envsubst| utility becomes the configuration manager. To automate the process, add a script that runs templates and renders them based on variables. It is not an enterprise-level solution, but it is suitable for simple projects.
 
 \section{ Reading the Environment from Config}
 
-The following techniques make an application read parameters from file and environment \emph{simultaneously}. The difference is at what step it happens.
+The following techniques make an application read parameters from file and environment simultaneously. The difference is at what step it happens.
 
-Suppose we wrote the main parameters in a file, and the password for the database comes from the environment. Since such solutions are team-wide, agree among yourselves that the \verb|password| field contains not a password, but a variable name, for example, \verb|"DB_PASS"|. Let's write a spec that displays the variable value by name:
+Suppose we put the main parameters in a file, and the password for the database comes from the environment. Since such solutions are team-wide, agree among yourselves that the \verb|password| field contains not a password, but a variable name, for example, \verb|"DB_PASS"|. Let's write a spec that infers the variable value by its name:
 
 \ifnarrow
 
@@ -1340,22 +1330,22 @@ If the variable is not set, the output will return an error. For more control, r
 A quick test: run the REPL with the \verb|DB_PASS| variable and read it using the spec:
 
 \begin{bash}
-DB_PASS='*(&fd}A53z#$!' lein repl
+DB_PASS='secret123' lein repl
 
 (s/conform ::db-password "DB_PASS")
-"*(&fd}A53z#$!"
+"secret123"
 \end{bash}
 
 To move a field out of the file to the environment, replace its value with the variable name. Update the spec for this field: add \verb|::->env| to the beginning of the \verb|s/and| chain.
 
 \index{tags!EDN}
 
-Another way to read variables from a file is to expand it with \emph{tags}. A tag is a short word that indicates that the meaning behind it is read in a certain way. YAML and EDN formats support tags. Libraries offer several basic ones for them. Their set can be expanded upon request.
+Another way to read variables from a file is to expand it with tags. A tag is a short word that indicates that the meaning behind it is read in a certain way. YAML and EDN formats support tags. Libraries offer several basic ones for them. You can easily add your own tag.
 
 \index{dates!parsing}
 \index{modules!clojure.edn}
 
-In EDN, a tag starts with a hash sign and captures the next value. For example, \verb|#inst "2019-07-10"| convert the string to the date. The tag is associated with a single argument function that finds a value from the initial one. To set your tag, pass a special map to the \verb clojure.edn/read-string| function. Its keys are symbols, and values are functions.
+In EDN, a tag starts with a hash sign and captures the next value. For example, \verb|#inst "2019-07-10"| converts a string to a date. The tag is associated with a single argument function that finds a value from the initial one. To set your tag, pass a special map to the \verb|clojure.edn/read-string| function. Its keys are symbols, and values are functions.
 
 Add the \verb|#env| tag that will return the value of the variable by name. The name can be a string or a symbol. Let's define a function:
 
@@ -1404,7 +1394,7 @@ Now we'll read the EDN line with the new tag:
 (edn/read-string
   {:readers {'env tag-env}}
   "{:db-password #env DB_PASS}")
-;; {:db-password "*(&fd}A53z#$!"}
+;; {:db-password "secret123"}
 \end{clojure}
 
 \else
@@ -1414,12 +1404,12 @@ Now we'll read the EDN line with the new tag:
 
 (edn/read-string {:readers {'env tag-env}}
                  "{:db-password #env DB_PASS}")
-;; {:db-password "*(&fd}A53z#$!"}
+;; {:db-password "secret123"}
 \end{clojure}
 
 \fi
 
-To avoid passing the tags every time, let's prepare the \verb|partial| function for the \verb|edn/read-string| one. The new function accepts only a string:
+To avoid passing the tags every time, let's prepare the \code{read-config} function ``charged'' with the tags. We build it using \code{partial}. The new function accepts only a string:
 
 \begin{clojure}
 (def read-config
@@ -1435,7 +1425,7 @@ To parse a file with tags, read it into a string and pass it to \verb|read-confi
     read-config)
 \end{clojure}
 
-YAML tags start with one or two exclamation marks, depending on the semantics. Standard tags have two marks, while third-party (custom) tags have one. This way, when we run into a tag, we immediately understand its semantics.
+YAML tags start with one or two exclamation marks, depending on the semantics. Standard tags have two marks, while third-party tags have one. This way, when we run into a tag, we immediately understand its semantics.
 
 \index{formats!YAML}
 \index{libraries!Yummy}
@@ -1452,12 +1442,13 @@ db:
   password: !envvar DB_PASS
 \end{yaml}
 
-Now we'll include the library and read the file. In place of the tags, we get the environment values:
+Let's add the library and read the file. In place of the tags, we get the environment values:
 
 \ifnarrow
 
 \begin{clojure}
 (require '[yummy.config :as yummy])
+
 (yummy/load-config
   {:path "config.yaml"})
 
@@ -1472,6 +1463,7 @@ Now we'll include the library and read the file. In place of the tags, we get th
 
 \begin{clojure}
 (require '[yummy.config :as yummy])
+
 (yummy/load-config {:path "config.yaml"})
 
 {:server_port 8080
@@ -1486,7 +1478,7 @@ Now we'll include the library and read the file. In place of the tags, we get th
 \noindent
 We'll take a closer look at Yummy in the next section of the chapter.
 
-Tags have both advantages and disadvantages. On the one hand, they make the config more concise: a line with a tag makes more sense. \verb|#Env DB_PASS| is shorter and more pleasing to the eye. Complex tags are taken out to libraries and included in dependencies.
+Tags have both advantages and disadvantages. On the one hand, they make the config more concise: a line with a tag makes more sense. An expression like \verb|#env DB_PASS| is shorter and more pleasing to the eye. Some libraries provide tags for complex types and classes.
 
 On the other hand, tags make a config platform-specific. For example, the Python library fails to read the \verb|!envvar| tag in the YAML file because this library does not have such a tag (more precisely, it does, but with a different name). Technically, this can be fixed: skip unfamiliar tags or install a stub. However, the approach does not guarantee the same results across platforms.
 
