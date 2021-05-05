@@ -978,7 +978,7 @@ Here is a small part of the map:
  :shell "/bin/zsh"}
 \end{clojure}
 
-When variables are in a map, they follow the same pipeline: type inference, validation with a spec. Since all values are strings, the spec needs to be modified so that it converts strings to numbers. Previously, there was no need for this because the numbers came from JSON. The spec, which considers both the number and the string, will be efficient. A smart number parser looks like this:
+Now that we have a map of variables, it follows the same pipeline: type inference, validation with a spec. Since all values are strings, the spec needs to be modified so that it converts strings to proper types. Previously, there was no need for this because the numbers came from JSON. Let's make a better spec that considers both number and string types for numeric values. A smart number parser looks like this:
 
 \begin{clojure}
 (s/def ::->int
@@ -994,21 +994,22 @@ When variables are in a map, they follow the same pipeline: type inference, vali
 \end{clojure}
 
 \noindent
-With this spec, you can change the data source without changing the code.
+With this spec, you can change the data source without editing the code.
 
-\subsection{Useless Keys Problem}
+\subsection{Extra Keys Problem}
 
 The variable map has the disadvantage of many extraneous fields. The application doesn't need to know the terminal version or the path to Python. These fields introduce noise during printing and logging. If the spec fails, we'll see excessive data in \verb|explain|.
 
 \index{clojure.core!select-keys}
 \index{keys!selection}
 
-In the last step of \verb|s/conform|, you need to select only the useful data part from the map. The \verb|select-keys| function will return a subset of the list of keys. But where to get them? It takes a long time to list them manually, and besides, we duplicate the code. We have already specified the keys in the \verb|::config| spec, and we don't want to do this a second time. We'll use a trick to get the keys \emph{out of the spec}.
+In the last step of \verb|s/conform|, you need to select only the useful data part from the map. The \verb|select-keys| function will return a subset of another map with only the keys passed to the second argument. But where to get the keys? It takes a long time to list them manually, and besides, we duplicate the code. We have already specified the keys in the \verb|::config| spec, and we don't want to do this a second time. We'll use a trick to get the keys out of the spec.
 
-The \verb|s/form| function takes a spec key and returns the frozen form of whatever was passed to \verb|s/def|. We will get a list where each item is a primitive or a collection of primitives (number, string, character, and others).
-For the \verb|::config| spec, we'll get the following form:
+The \verb|s/form| function takes a spec key and returns the frozen form of whatever was passed to \verb|s/def|. We will get a list where each item is a primitive or a collection of primitives (number, string, symbol, and others). For the \verb|::config| spec, we'll get the following form:
 
 \begin{clojure}
+(s/form ::config)
+
 (clojure.spec.alpha/keys
  :req-un [:book.config/server_port
           :book.config/db
@@ -1017,9 +1018,9 @@ For the \verb|::config| spec, we'll get the following form:
 
 \index{collections!list}
 
-Please note: this is a \emph{list}, not a code. The keys you need are in the third item after \verb|:req-un|. We should consider other types of keys, for example, \verb|:opt-un|. Let's write a universal function that will return all keys from the \verb|s/keys| spec.
+Please note: this is a list indeed, not a code. The keys you need are in the third item after the \verb|:req-un| keyword. We should consider other types of keys, for example, \verb|:opt-un|. Let's write a universal function that will return all keys from the \verb|s/keys| spec.
 
-We'll drop the first symbol of the shape.  That leaves a list, where the odd items are the type of keys, and the even ones are their vector. Let's rebuild the list into a map and combine the values. For \verb|-un| keys, discard the namespace. As a result of these actions, we get the function:
+We'll drop the first symbol of the form. That leaves a list, where the odd items are the type of keys, and the even ones are their vector. Let's rebuild the list into a map and combine the values. For \verb|-un| keys, discard the namespace. As a result of these actions, we get the function:
 
 \index{spec!spec\arr{}keys}
 
@@ -1065,8 +1066,7 @@ Let's check the spec of our loader. Indeed, we get three keys:
 (:server_port :db :event)
 \end{clojure}
 
-\noindent
-Let's rewrite reading variables into the map. In the last step, we select a subset of these keys.
+Let's rewrite reading variables into the map. In the last step, we select only those keys that we declared in our spec.
 
 \begin{clojure}
 (defn read-env-vars []
