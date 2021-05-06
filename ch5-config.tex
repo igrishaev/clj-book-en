@@ -1482,7 +1482,7 @@ Tags have both advantages and disadvantages. On the one hand, they make the conf
 
 On the other hand, tags make a config platform-specific. For example, the Python library fails to read the \verb|!envvar| tag in the YAML file because this library does not have such a tag (more precisely, it does, but with a different name). Technically, this can be fixed: skip unfamiliar tags or install a stub. However, the approach does not guarantee the same results across platforms.
 
-With tags, a config is overgrown with side effects. In functional programming terms, it loses its purity. It is tempting to move too much logic into a tag: enable a child file, format strings. Tags blur the line between reading a config and processing it. When there are too many of them, the configuration is difficult to maintain.
+With tags, a config is overgrown with side effects. In functional programming terms, it loses its purity. It is tempting to move too much logic into a tag: include a child file, format strings. Tags blur the line between reading a config and processing it. When there are too many of them, the configuration is difficult to maintain.
 
 These techniques — parsing with spec and tags — are opponents. Choose the method that is convenient for the team and process.
 
@@ -1494,11 +1494,11 @@ We have mentioned three data formats: JSON, EDN, and YAML. Let's run through the
 
 \index{formats!JSON}
 
-Even non-web developers are familiar with JSON. It is a data format based on JavaScript rules. The standard's basic types are numbers, strings, boolean, null, and two collections~--- an array and object, which is considered as a map. The collections can be nested within each other.
+Even non-web developers are familiar with JSON. It is a data format based on JavaScript syntax. The standard's basic types are numbers, strings, boolean, null, and two collections~--- an array and object, which is considered as a map. The collections can be nested within each other.
 
 \index{languages!JavaScript}
 
-The advantage of JSON is its popularity. Today it is the standard for for exchanging data between client and server.  It is easier to read and maintain than XML. Today's editors, languages, and platforms work with JSON. It is the natural way to store data in JavaScript.
+The advantage of JSON is its popularity. Today it is the standard for exchanging data between client and server.  It is easier to read and maintain than XML. Today's editors, languages, and platforms work with JSON. It is the natural way to store data in JavaScript.
 
 But JSON does not provide an opportunity to comment. At first glance, this is a trifle, but in practice, comments are important to us. If you have added a new parameter, you should write a comment about what it does and what values it takes. Look at Redis, PostgreSQL, or Nginx configurations~--- more than half of the file are comments.
 
@@ -1527,13 +1527,13 @@ Developers have come up with tricks to get around this limitation in JSON.  For 
 
 We expect the library to walk through the fields in turn, and the second field will replace the first. The JSON standard does not specify the order of the fields, so proceed at your own risk. The library logic can be different, for example, to throw an exception or skip an already processed key.
 
-Sometimes product-level comments are added to JSON. Sublime Text editor stores settings in \verb|.json| files with JavaScript comment support (double slash). There is no general solution to the problem.
+Some programs carry their own JSON parser that supports comments. For example, Sublime Text editor stores settings in \verb|.json| files with JavaScript comments (double slash). But there is no general solution to the problem.
 
 \index{libraries!Cheshire}
 
-The format does not support the tags we talked about above. The \footurl{Cheshire}{https://github.com/dakrone/cheshire}[Cheshire][-22mm] and \footurl{Data.json}{https://github.com/clojure/data.json}[Data.json] libraries are used to work with it.
+The format does not support the tags we talked about above. There are \footurl{Cheshire}{https://github.com/dakrone/cheshire}[Cheshire][-22mm] and \footurl{Data.json}{https://github.com/clojure/data.json}[Data.json] libraries to work with JSON in Clojure. Both of them provide two main functions: to read and write a document. You will find detailed examples in GitHub pages of the projects.
 
-JSON compares favorably with the verbose XML it replaces. JSON data looks cleaner and more convenient than a tag tree.  But more modern formats express data even more clearly. In YAML, you can write any structure without a single bracket, thanks to indentation.
+JSON compares favorably with the verbose XML it replaces. JSON data looks cleaner and more convenient than a tag tree.  But more modern formats express data even more clearly. In YAML, you can express any structure without a single bracket, thanks to indentation.
 
 JSON syntax is noisy: it requires quotes, colons, and commas where other formats do without them. A comma at the end of an array or object is considered an error. Map keys must not be numbers. It is not allowed to write text on multiple lines.
 
@@ -1636,11 +1636,9 @@ numbers:
   - 3
 \end{yaml}
 
-DevOps engineers like YAML because it supports Python-style comments (with hashes). Programs like Docker-compose and Kubernetes can read settings from YAML files.
+DevOps engineers like YAML because it supports Python-style comments (with hashes). Programs like Docker-compose and Kubernetes use YAML for configuration.
 
-YAML allows you to write text across multiple lines. It is easier to read and copy than a single line with a newline character \verb|\n| \lis{fig:yaml-multi-line}.
-
-\begin{listing}[ht!]
+YAML allows you to write text across multiple lines. It is easier to read and copy than a single line with a newline character \verb|\n|.
 
 \ifnarrow
 
@@ -1671,16 +1669,11 @@ description: |
 
 \fi
 
-\caption{ Multiple line message in YAML}
-\label{fig:yaml-multi-line}
-
-\end{listing}
-
 The language officially supports tags.
 
 \index{indentation!in YAML}
 
-The cons of YAML stem from its pros. Indentation seems to be a good solution until the file gets too large. The gaze hops between the screens to check structure levels. Sometimes part of the data moves to the side due to an unnecessary indent. In terms of YAML, there is no error, so it's hard to find it.
+The cons of YAML stem from its pros. Indentation seems to be a good solution until the file gets too large. The gaze hops across the file to check if the structure levels are correct. Sometimes part of the data steps to the wrong level due to an unnecessary indent. In terms of YAML, there is no error, so it's hard to find it.
 
 Sometimes, missing quotes will result in incorrect types or structure. Suppose the \verb|phrases| field lists phrases that a user will see:
 
@@ -1691,7 +1684,7 @@ phrases:
   - Warning: wrong email address.
 \end{yaml}
 
-Because of the colon in the last line, the parser will think it is a nested map. As a result, we get the wrong structure:
+Because of the colon in the last line, the parser will think it is a nested map (pay attention to syntax highlighting). As a result, we get the wrong structure:
 
 \ifnarrow
 
@@ -1714,7 +1707,7 @@ Because of the colon in the last line, the parser will think it is a nested map.
 
 Other examples: product version \verb|3.3| is a number, but \verb|3.3.1| is a string. Phone \texttt{+79625241745} is a number because the plus sign is considered a unary operator by analogy with the minus. Leading zeros mean octal notation, so if you don't add quotes to \verb|000042|, you'll get \verb|34|.
 
-This does not mean that YAML is a failed format. The cases above are described in the standard and have a logical explanation. But sometimes YAML doesn't behave the way you expect~--- it’s a price to pay for a simplified syntax.
+This does not mean that YAML is a failed format. The cases above are described in the documentation and have a logical explanation. But sometimes YAML doesn't behave the way you expect~--- it’s a price to pay for a simplified syntax.
 
 \subsection{EDN}
 
@@ -1722,11 +1715,11 @@ This does not mean that YAML is a failed format. The cases above are described i
 
 The EDN format occupies a special place in our review. It is as close as possible to Clojure and therefore plays the same role in the language as JSON in JavaScript. It is a Clojure-native way to associate data with a file.
 
-EDN syntax is almost identical to the language grammar. The format covers more types than JSON and YAML. It contains scalars such as symbols and keywords (the \verb|Symbol| and \verb|Keyword| classes from \verb|clojure.lang|). In addition to vectors and maps, EDN offers lists and sets. Maps can be typed to allow creating entry instances upon reading. We will talk more about entries in the chapter on systems \page{defrecord}.
+EDN syntax is almost identical to the language grammar. The format covers more types than JSON and YAML. It contains scalars such as symbols and keywords (the \verb|Symbol| and \verb|Keyword| classes from the \verb|clojure.lang| package). In addition to vectors and maps, EDN offers lists and sets. Maps can be typed to allow creating \code{defrecord} instances upon reading. We will talk more about entries in the chapter on systems \page{defrecord}.
 
 \index{tags!EDN}
 
-A tag starts with a hash character. The standard offers two tags by default: \verb|#inst| and \verb|#uuid|. The former reads a string into a date and the latter into a \verb|java.util.UUID| instance. Identifiers are used in distributed systems like Cassandra and Kafka. Above, we showed how to add your own tag: you need to bind it to a one-argument function when reading a line.
+A tag starts with a hash character. The standard offers two tags by default: \verb|#inst| and \verb|#uuid|. The former reads a string into a date and the latter into a \verb|java.util.UUID| instance. Above, we showed how to add your own tag: you need to bind it to a one-argument function when reading a line.
 
 Here's an example with different types, collections, and tags:
 
@@ -1737,7 +1730,7 @@ Here's an example with different types, collections, and tags:
  :task-state
  #{:pending :in-progress :done}
  :account-ids
- [1001 1002 1003 nil]
+ [1001 1002 1003]
  :server
  {:host "127.0.0.1" :port 8080}
  :date-range
@@ -1751,7 +1744,7 @@ Here's an example with different types, collections, and tags:
 \begin{clojure}
 {:user/banned? false
  :task-state #{:pending :in-progress :done}
- :account-ids [1001 1002 1003 nil]
+ :account-ids [1001 1002 1003]
  :server {:host "127.0.0.1" :port 8080}
  :date-range [#inst "2019-07-01" #inst "2019-07-31"]
  :cassandra-id #uuid "26577362-902e-49e3-83fb-9106be7f60e1"}
@@ -1761,28 +1754,34 @@ Here's an example with different types, collections, and tags:
 
 In EDN, data does not differ from code. If you copy them to the REPL or a module, the compiler will execute them. Conversely, the REPL output can be written to a file for further work.
 
-The \verb|pr-str| function converts data to text. In EDN, a dump comes down to simple steps: convert the data into a string and write it to a file. Below the function result is written to the \verb|dataset.edn| file:
+Saving data to EDN means to bake them into a string a write to a file. The function \verb|pr-str| returns a string which would appear in console if you would print an object. The code below creates a file \verb|dataset.edn| with the data:
 
-\begin{clojure}
-(-> (get-dataset)
+\begin{english}
+  \begin{clojure}
+(-> {:some ["data"]}
     (pr-str)
     (->> (spit "dataset.edn")))
-\end{clojure}
+  \end{clojure}
+\end{english}
 
-The opposite action is to read the file and parse the code in Clojure using \verb|read-string|:
+The opposite action is to read the file and parse the code in Clojure using \verb|edn/read-string|:
 
-\begin{clojure}
-(-> "dataset.edn" slurp read-string)
+\begin{english}
+  \begin{clojure}
+(require '[clojure.edn :as edn])
+
+(-> "dataset.edn" slurp edn/read-string)
 ;; {:some ["data"]}
-\end{clojure}
+  \end{clojure}
+\end{english}
 
 \index{syntax!\texttt{\#\_} (ignoring)}
 
-EDN supports more than just regular comments. The \verb|#_| tag ignores any item following it, including the collection. If you need to "ignore" a map that spans several lines, put \verb|#_| in front of it, and the parser will skip it.
+EDN supports more than just regular comments. The \verb|#_| tag ignores any item following it, including the collection. If you need to ``ignore'' a map that spans several lines, put \verb|#_| in front of it, and the parser will skip it.
 
 \index{syntax!\texttt{;} (comments)}
 
-This way, you can disable entire sections of the configuration. In the following example, we ignore the third element of the vector. If you put a regular comment (semicolon) on a line, it will touch the closing brackets, and the expression will become invalid.
+This way, you can disable entire sections of the configuration. In the following example, we ignore the third element of the vector. If you put a regular comment (semicolon) on a line, it would affect the closing brackets, and the expression will become invalid.
 
 \begin{clojure}
 {:users [{:id 1 :name "Ivan"}
@@ -1790,9 +1789,9 @@ This way, you can disable entire sections of the configuration. In the following
          #_{:id 3 :name "Huan"}]}
 \end{clojure}
 
-When both the backend and the frontend run on the Clojure and ClojureScript stack, EDN is the right choice.
+EDN is closely related to Clojure and, therefore, is not popular in other languages. Editors don't highlight its syntax without plugins. EDN will provide challenges for DevOps engineers who mostly work with JSON and YAML. If your configuration is precessed with Python or Ruby scripts, you will have to install a library to work with EDN format.
 
-EDN is closely related to Clojure and, therefore, is not popular in other languages. Editors don't highlight its syntax without plugins. EDN will provide challenges for DevOps engineers who mostly work with JSON and YAML. If scripts in Python or Ruby read a config, you will have to install a library to work with EDN format. Choose EDN where Clojure prevails over other technologies.
+Choose EDN where Clojure prevails over other technologies. It is the right choice when both the backend and the frontend run on the same Clojure(Script) stack.
 
 \section{Industrial Solutions}
 
