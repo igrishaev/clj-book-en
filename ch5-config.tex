@@ -2140,7 +2140,7 @@ system-user: !uuid cb7aa305-997c-4d53-a61a-38e0d8628dbb
 
 \fi
 
-The \verb|!slurp| tag reads the file, which is useful for encryption certificates. Their content is a long string that is inconvenient to store in a general configuration. The \verb|:auth|, \verb|:cert|, and \verb|:pkey| keys will hold the contents of the files from the \verb|certs| folder.
+The \verb|!slurp| tag reads the file, which is useful for encryption certificates. Their content is a long string that is inconvenient to store in a general configuration. The \verb|:auth|, \verb|:cert|, and \verb|:pkey| keys will hold the contents of the files from the \verb|certs| directory.
 
 \begin{yaml}
 tls:
@@ -2151,7 +2151,9 @@ tls:
 
 \index{spec!assert}
 
-To check the configuration, pass the spec key to the \verb|load-config| parameters. When a key is specified, Yummy executes \verb|s/assert| with the data from the file. If the validation returns false, an exception will float up. To improve text about an error, Yummy uses Expound.
+To check the configuration, pass the spec key to the \verb|load-config| parameters. When a key is specified, Yummy executes \verb|s/assert| with the data from the file. If the validation returns false, an exception will float up. For better reading of spec validation reports, Yummy uses Expound \page{expound}.
+
+\index{libraries!Expound}
 
 \begin{clojure}
 (load-config {:program-name :book
@@ -2222,13 +2224,13 @@ In production mode, write the exception to the log and exit the program.
 
 \fi
 
-For validation purposes, Yummy uses \verb|s/assert|. This macro does not coerce values, as \verb|s/conform| does, but only throws an exception. This is done on purpose: types are coerced by tags, and the spec only validates them.
+One note about the \verb|s/assert| macro which Yummy uses for validation. This macro does not coerce values, as \verb|s/conform| does, but only throws an exception. This is done on purpose: types are coerced by tags, and the spec only validates them.
 
 \section{Summary}
 
-Let us briefly outline the main points of this chapter. The configuration is necessary for the project to go through the production stages: development, testing, release. At each step, it is launched with different settings. This is not possible without configuration.
+Let us briefly outline the main points of this chapter. The configuration is necessary for the project to go through the production stages: development, testing, release. At each step, the project is launched with different settings. This is not possible without configuration.
 
-Loading configuration means reading data, type inference, and validation values. In case of an error, a program displays a message and exits with an emergency code. It cannot continue working with invalid parameters.
+Loading configuration means reading data, infer types and validate values. In case of an error, a program displays a message and exits with an emergency code. It cannot continue working with invalid parameters.
 
 Configuration sources can be a file, a resource, or environment variables. There are hybrid schemes when most of the data come from the file and secret fields from the environment.
 
@@ -2236,8 +2238,8 @@ Environment variables live in operating system memory. When there are many of th
 
 The environment is a flat map. Variables store only text; there is no nesting or namespace in keys. Different systems have different conventions on how to extract a structure from a variable name. Dots, double underscores, or something else can be used.
 
-Data formats differ in syntax and types. General-purpose formats define strings, numbers, maps, and lists. They are not very flexible, but they work everywhere. On the contrary, the platform-specific data format is closely related to the platform but is unpopular in other languages.
+Data formats differ in syntax and types. General-purpose formats define strings, numbers, maps, and lists. They are not very flexible, but they work everywhere. On the contrary, the platform-specific data format is closely tied to the platform but is unpopular in other languages.
 
-Some formats support tags. More complex types such as dates are obtained from scalars using tags. The danger of tags is: when there are too many, config turns into code.
+Some formats support tags. Use them to describe complex types with primitives: strings and numbers. Tags are also helpful for pre-processing a document, for example, to import its nested parts. The danger of tags is: when there are too many, config turns into code.
 
-Clojure offers several libraries for your application config. They differ in design and architecture, and each developer will find what they like. There is no definite answer to the question of which format or library is better. Choose what will solve your problem most cheaply.
+Clojure offers several libraries for configuring applications. They differ in design and architecture, and each developer will find what they like. There is no definite answer to the question of which format or library is better. Choose what will solve your problem most cheaply.
