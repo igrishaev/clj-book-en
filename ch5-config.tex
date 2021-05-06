@@ -1897,13 +1897,13 @@ To track loading, set the \verb|DEBUG=y| environment variable. With it, Cprop di
 
 Cprop only reads data from sources but doesn't validate it. There is no validation with a spec in the library, as it is done in our loader. The step is up to you.
 
-The library casts types its way. If the string contains only digits, it is converted to a number. Comma-separated values become lists. Sometimes these rules are not enough for complete type control. Thus, Spec and \verb|s/conform| are still useful for error reporting and type inference.
+The library casts types its own way. If the string contains only digits, it is converted to a number. Comma-separated values become lists. Sometimes these rules are not enough for complete type control. Thus, Spec and \verb|s/conform| are still useful for error reporting and type inference.
 
 \subsection{Aero}
 
 \index{libraries!Aero}
 
-\footurl{Aero}{https://github.com/juxt/aero}[Aero][1mm] works with EDN files. The library offers tags, making the format look like a mini-programming language. Branching, import, formatting operators appear in it. This approach can be figuratively called "EDN on steroids".
+\footurl{Aero}{https://github.com/juxt/aero}[Aero][1mm] works with EDN files. The library offers tags, making the format look like a mini-programming language. Branching, import, formatting operators appear in it. This approach can be figuratively called ``EDN on steroids''.
 
 \index{modules!aero.core}
 
@@ -1934,13 +1934,13 @@ The \verb|read-config| function reads an EDN file or resource:
 
 \index{tags!Aero}
 
-Tags are the main point in Aero, so let's take a look at the main ones. The familiar \verb|#env| changes the name of the environment variable to a value:
+Tags are the main point in Aero, so let's take a look at the main ones. The familiar \verb|#env| one discovers the value of a variable by its name:
 
 \begin{clojure}
 {:db {:passwod #env DB_PASS}}
 \end{clojure}
 
-The \verb|#envf| tag formats a string using environment variables. Let's say the connection to the database consists of separate fields, but you prefer the JDBC URI, a long string that looks like a web address. In order not to repeat, the address is calculated from the original fields:
+The \verb|#envf| tag formats a string using environment variables. Let's say the connection to the database consists of separate fields, but you prefer the JDBC URI, a long string that looks like a web address. In order not to duplicate data, the address is composed from the original fields:
 
 \ifnarrow
 
@@ -1959,17 +1959,19 @@ The \verb|#envf| tag formats a string using environment variables. Let's say the
 
 \fi
 
-The \verb|#or| tag is similar to its Clojure counterpart and is needed for default values. Suppose no database port is specified in the file. To avoid an error, let's specify the standard PostgreSQL port:
+The \verb|#or| tag is similar to its Clojure counterpart and is needed for default values. Suppose no database port is specified in the file. In this case, let's specify the standard PostgreSQL port:
 
 \begin{clojure}
 {:db {:port #or [#env DB_PORT 5432]}}
 \end{clojure}
 
+Pay attention, the value for the tag is always a vector or a list. Also, the example above introduces nested tags (\code{#env} inside \code{#or}).
+
 \index{profiles!Aero}
 
-The \verb|#profile| tag allows you to find the value by the \emph{profile}. The value behind the tag must be a map. The map key is the profile, and the value is what we get as a result of its resolve. The profile is set in parameters of \verb|read-config|.
+The \verb|#profile| tag allows you to find the value by profile. The value behind the tag must be a map. The map key is the profile, and the value is what we get as a result of its discovery. The profile is set in parameters of \verb|read-config|.
 
-The example below shows how to find the base name by profile. Without a profile, we get the \verb|"book"| name, but for \verb|:test|, it becomes \verb|"book_test"|:
+The example below shows how to find the database name by profile. Without a profile, we get the ``book'' name, but for \verb|:test|, it becomes ``book\_test''.
 
 \ifnarrow
 
@@ -1998,7 +2000,7 @@ The example below shows how to find the base name by profile. Without a profile,
 
 \fi
 
-The \verb|#include| tag puts another EDN file in the config. The file can also contain tags, and the library will execute them recursively. We use imports when the configuration becomes too large.
+The \verb|#include| tag puts another EDN file in the config. The file can also contain tags, and the library will execute them recursively. We use imports when the configuration becomes too large or there is a need to share its parts across multiple projects.
 
 \begin{clojure}
 {:queue #include "message-queue.edn"}
@@ -2030,15 +2032,15 @@ When reading a file, the link resolves to the value:
 
 \fi
 
-Aero offers a plain configuration language. The library entices people with the beauty of its idea and implementation. But the moment you feel like moving from inflexible JSON to Aero, think about the other side of the coin.
+Aero offers a simple configuration language. The library entices developers with the beauty of its idea and implementation. But the moment you feel like moving from inflexible JSON to Aero, think about the other side of the coin.
 
 \index{declarativity}
 
-They do not accidentally separate config from code. If it weren't for the industry's need, we would store the parameters in the source files. But best practices, on the contrary, advise \emph{separating} parameters from the code. This is also because, unlike code, the configuration is \emph{declarative}.
+We do not accidentally separate config from code. If it weren't for the industry's need, we would store the parameters in the source files. But best practices, on the contrary, advise separating parameters from the code. This is also because, unlike code, the configuration is declarative.
 
 Inflexible JSON files have an important feature: they are declarative. If you open a file or run \verb|cat| on it, you will see the data. The syntax may be awkward, but data is self-explanatory, and there is only one way to read it.
 
-On the contrary, a file with an abundance of tags is hard to maintain. It is not a config but \emph{code}. To see the data, you have to execute the file. When reading a file, a mini-interpreter runs in your mind, which does not guarantee the correct result.
+On the contrary, a file with an abundance of tags is hard to read. It is not a config but code. To see the final data, you have to execute the file. When reading a file, your head runs a mini interpreter, which does not guarantee the correct result.
 
 It turns out to be a kind of vicious circle: we moved the parameters into the config, added tags, and returned to the code. The approach has the right to exist, but you should choose it after weighing the pros and cons.
 
@@ -2051,7 +2053,7 @@ The \footurl{Yummy}{https://github.com/exoscale/yummy}[Yummy][1mm] library close
 
 A fully featured loader does more than just read parameters. The cycle includes data validation and error output. The message clearly explains the cause of the error. Using options, you can set a reaction to an exception that occurred while working. Yummy offers all of the above.
 
-The file path either the parameters specify, or the library searches for it according to special rules. Here's an option when the path is explicitly set:
+The file path either might be set with parameters, or the library searches for it according to special rules. Here's an option when the path is explicitly set:
 
 \ifnarrow
 
@@ -2073,7 +2075,7 @@ The file path either the parameters specify, or the library searches for it acco
 
 \fi
 
-In the second case, we specified the name of the project instead of the path. Yummy looks for the file path in the \verb|<project> _CONFIGURATION| environment variable or the \verb|<project> .configuration| property:
+In the second case, we specified the name of the project instead of the path. Yummy looks for the file path in the \verb|<project>_CONFIGURATION| environment variable or the \verb|<project>.configuration| property:
 
 \begin{bash}
 $ export BOOK_CONFIGURATION=config.yaml
