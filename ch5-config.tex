@@ -1795,19 +1795,19 @@ Choose EDN where Clojure prevails over other technologies. It is the right choic
 
 \section{Industrial Solutions}
 
-Config is significant to understand, but we don't expect to write one from scratch for every project. In the final section, we'll take a look at what the community has to offer for configuration handling in projects. We'll focus on Cprop, Aero, and Yummy. These libraries differ in ideology and architecture. We have specially selected them to see the problem from different angles.
+Configuration is significant to understand, but we don't encorouge you to write it from scratch every time you run a new project. In the final section, we'll take a look at what does the community provides for configuration handling. We'll focus on Cprop, Aero, and Yummy. These libraries differ in ideology and architecture. We have specially selected them to see the problem from different angles.
 
 \subsection{Cprop}
 
 \index{libraries!Cprop}
 
-The \footurl{Cprop}{https://github.com/tolitius/cprop}[Cprop] library works on the principle of "data from everywhere". Unlike our loader, Cprop understands more sources. The library can read not only file and environment variables but also resources, property files, and ordinary maps.
+The \footurl{Cprop}{https://github.com/tolitius/cprop}[Cprop] library works on the principle of ``data from everywhere''. Unlike our loader, Cprop understands more sources. The library can read not only a file and environment variables but also resources, property files, and ordinary maps.
 
 The library has a preset order of walking through sources and their priority. Fields from one source replace others. For example, environment variables are considered more important than a file. In Cprop, you can easily set your own loading order for special cases.
 
 We are interested in the \verb|load-config| function. If you call it without any parameters, it will start the standard loader. By default, it looks for two data sources: a resource and a property file. This resource must be named \verb|config.edn|. If the system property \verb|conf| is not empty, the library assumes that this is the property file path and loads it.
 
-Properties are Java machine variables, similar to the JVM environment. When loaded, JM receives the default properties: operating system type, line separator, and others. Additional properties are set with the \verb|-D| parameter when starting. The example below runs a jar file with a \verb|conf| property:
+Properties are Java runtime variables, similar to the system environment. When loaded, JVM receives the default properties: operating system type, line separator, and others. Additional properties are set with the \verb|-D| parameter when starting. The example below runs a jar file with a \verb|conf| property:
 
 \index{JVM!Jar}
 \index{JVM!properties}
@@ -1828,7 +1828,7 @@ $ java -Dconf="/path/to/config.properties" -jar project.jar
 
 \fi
 
-The \verb|.properties| files are \verb|field=value| pairs, one per line. Fields are like domains: they are lexemes separated by dots. Lexemes are in descending order of priority:
+The \verb|.properties| files are \verb|field=value| pairs, one per line. Fields are like domains: they are lexemes separated by dots. Lexemes follow in descending order of priority:
 
 \begin{ini}
 db.type=mysql
@@ -1844,8 +1844,7 @@ The library treats dots as nested maps. The file above will return the following
       :pool {:connections 8}}}
 \end{clojure}
 
-After receiving the configuration, Cprop looks for overriding in the environment variables. The same rules work for them as in our loader.
-For example, the variable \texttt{DB\_\_POOL\_\_CONNEC\-TIONS=16} will replace the value 8 in the nested map. Cprop ignores variables that are not part of the config and thus keeps it tidy.
+After receiving the configuration, Cprop looks for overriding in the environment variables. For example, the variable \texttt{DB\_\_POOL\_\_CONNEC\-TIONS=16} will replace the value 8 in the nested map. Cprop ignores variables that are not part of the config and thus keeps it tidy.
 
 Non-standard paths to the resource and file are specified with the keys:
 
@@ -1859,7 +1858,7 @@ Non-standard paths to the resource and file are specified with the keys:
 
 For delicate work, Cprop offers the \verb|cprop.source| module. Its \verb|from-env| function reads all environment variables, and \verb|from-props-file| loads the property file, and so on. It is easy to build the combination that the project needs using the module.
 
-The \verb|:merge| key merges the config with any source. The former holds a sequence of expressions that will return a map. Here is a great example from documentation:
+The \verb|:merge| key unites the config with any source. The former holds a sequence of expressions that will return a map. Here is a detailed example from documentation:
 
 \ifnarrow
 
