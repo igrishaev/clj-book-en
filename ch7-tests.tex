@@ -43,7 +43,7 @@ Note: in the test, we are comparing the \verb|->fahr| function result with an in
 
 The \verb|assert| macro will throw an exception if the body evaluates to false. So far, \verb|(test-fahr)| works without errors because the calculations are correct. If we change the formula, we'll get an exception:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -84,7 +84,7 @@ Tests similar in semantics are combined into \emph{cases}. Let us recall the sch
 
 \index{quadratic equation}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -121,7 +121,7 @@ Tests similar in semantics are combined into \emph{cases}. Let us recall the sch
 
 The test calls the \verb|square-roots| function at least three times to validate the algorithm. Let's pick out the parameters so that each branch works. It's even better if there is a separate test for each branch to expand in the future. The tests below form a case that tests the entire algorithm.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -169,7 +169,7 @@ In object-oriented languages, cases are classes, and tests are their methods. In
 
 Some libraries build a report where executed lines are marked with green (plus) and missing ones with red (minus). Coverage calculation is a difficult task, so it is taken out in the framework extension. For our case, we would get the following output:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{diff}
@@ -201,7 +201,7 @@ Some libraries build a report where executed lines are marked with green (plus) 
 \end{english}
 \fi
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \def\covperc{80\%}
 
@@ -211,7 +211,7 @@ Some libraries build a report where executed lines are marked with green (plus) 
 
 \fi
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 The \verb|square-roots| function has ten lines. Eight of them worked when running the test. The coverage will be 8/10, approximately \covperc. A 90% coverage is considered enough for the code to work reliably. The values below indicate low coverage. This means that the project contains code without protection from spontaneous changes. On the other hand, when trying to get closer to 100%, tests become expensive to maintain. Each command follows the percentages that are convenient for the process.
 \else
 The \verb|square-roots| function has seven lines. Eight of them worked when running the test. The coverage will be 5/7, approximately \covperc. A 90% coverage is considered enough for the code to work reliably. The values below indicate low coverage. This means that the project contains code without protection from spontaneous changes. On the other hand, when trying to get closer to 100%, tests become expensive to maintain. Each command follows the percentages that are convenient for the process.
@@ -251,7 +251,7 @@ That's how authentication works in popular services. Let's write a test for the 
 
 \label{hmac-sha256}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -312,7 +312,7 @@ Let the function read the file. Before running the test, we write the file to th
 
 \index{formats!CSV}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -340,7 +340,7 @@ Let the function read the file. Before running the test, we write the file to th
 \noindent
 and after it:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -371,7 +371,7 @@ and after it:
 
 Let's write a test for \verb|process-csv-content|. We don't have to create a file on the disk: the function takes a string, which we declare in place.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -509,7 +509,7 @@ Let's write tests that meet the requirements of the Clojure framework. We will t
 \index{clojure.test!deftest}
 \index{clojure.test!is}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -607,7 +607,7 @@ The report shows two \verb|failures|, which is correct: the \verb|is| macro occu
 
 An expression with \verb|:only| will execute only the specified test. That is useful when you are working on a chunk of code and run a test many times.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{bash}
@@ -628,7 +628,7 @@ $ lein test :only book.util-test/test-fahr
 
 \index{exceptions!in tests}
 
-\textbf{Errors} are uncaught exceptions that happened while the test was running. Most of the time, errors occur when calling a function with invalid data. Let's say we decided to test \verb|->fahr| с \verb|nil| with nil. Let's add a second test:
+\textbf{Errors} are uncaught exceptions that happened while the test was running. Most of the time, errors occur when calling a function with invalid data. Let's say we decided to test \verb|->fahr| with nil. Let's add a second test:
 
 \begin{english}
   \begin{clojure}
@@ -640,7 +640,7 @@ $ lein test :only book.util-test/test-fahr
 \noindent
 The report should be different:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -680,7 +680,7 @@ Tests failed.
 
 \index{NPE}
 
-\mnoindent
+
 Calling \verb|(->fahr nil)| results in a \texttt{NullPointer\-Exception}. The framework wraps the test in \verb|try/catch| and remembers the exception. For errors, the report displays the stack trace, which we reduced to save space.
 
 Sometimes we \emph{expect} a function with certain parameters to throw an exception. To write this as a statement, use the \verb|(is (thrown? ...))| macro. We'll look at an example with exceptions later.
@@ -722,7 +722,7 @@ expected: 999
 
 If we call a test \verb|(test-fahr-nil)| that is still faulty, we see an exception:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -752,7 +752,7 @@ This is only an output to the console, not an exception thrown. The \verb|deftes
 
 When the test runs as a function, \emph{fixtures} do not work. These are the handlers that prepare the test environment. We'll talk about them later; for now, note that the \verb|test-vars| function takes the fixtures into account when running tests. It takes a vector of \verb|Var| objects:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -780,7 +780,7 @@ When the test runs as a function, \emph{fixtures} do not work. These are the han
 
 The \verb|run-tests| function runs all tests in the current or specified namespace. Technically it boils down to \verb|test-vars| with all the namespace variables:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -803,7 +803,7 @@ The \verb|run-tests| function runs all tests in the current or specified namespa
 
 Another function~--- \verb|run-all-tests|~--- runs tests for all loaded namespaces:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -846,7 +846,7 @@ The regular expression is passed \verb|run-all-tests| to exclude unnecessary opt
   \end{clojure}
 \end{english}
 
-\subsection{Emacs и CIDER}
+\subsection{Emacs and CIDER}
 
 \index{Emacs}
 \index{CIDER}
@@ -920,7 +920,7 @@ The \verb|testing| macros can be nested. Each message follows the previous one s
 
 We still haven't figured out how to test the code with exceptions. We'd like to make sure that the call \verb|(->fahr nil)| will throw an error and not return \verb|nil|. If there is no check, the code is not protected from such changes:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -985,7 +985,7 @@ The naive way is to wrap the call in \verb|try| and add a statement to the \verb
   \end{clojure}
 \end{english}
 
-This partly solves the problem. In case of an error, \verb|(is true)| really works. However, \verb|try| has no back validation. If you replace \verb|(->fahr nil)| на \verb|(->fahr 1)|, there will be no exception, and the \verb|(catch...)|  body will not get control. If you are expecting an exception but it does not occur, that is \emph{also an error}.
+This partly solves the problem. In case of an error, \verb|(is true)| really works. However, \verb|try| has no back validation. If you replace \verb|(->fahr nil)| with \verb|(->fahr 1)|, there will be no exception, and the \verb|(catch...)|  body will not get control. If you are expecting an exception but it does not occur, that is \emph{also an error}.
 
 \index{classes!NullPointerException}
 
@@ -1026,7 +1026,7 @@ Sometimes it is not enough to check only for a class. In large chunks of code, \
 
 Solve the problem in two steps. The first step is to fix the function so that it throws something more meaningful than \verb|NPE|. A special exception \texttt{IllegalArgument\-Ex\-cep\-tion} will do. Supplement it with a message about what exactly is wrong:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1055,7 +1055,7 @@ Solve the problem in two steps. The first step is to fix the function so that it
 
 The second step is to make sure that the exception came from \verb|->fahr|. The \texttt{(is (thrown\--with-msg?...))} form checks whether the text of the exception matches the regular expression. The test below covers these requirements: another \verb|IllegalArgumentException| will fail.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1113,7 +1113,7 @@ The \verb|are| macro is handy for small expressions. As they grow, the macro bec
 
 Let's say we are testing an API to create a user. One of the tests checks the input parameters. We expect a negative answer in cases where the required field is missing or its format is incorrect. Let's write the correct parameters to the \verb|params-ok| variable:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1146,7 +1146,7 @@ Declare the \verb|params-variations| vector for negative cases. It consists of p
 
 The test runs along \verb|params-variations|. At each step, it calls \verb|api-create-user| with corrupted parameters. Note that the call is wrapped in \verb|testing| with the message. If \verb|is| does not work at one of the steps, we will know the cause for this from the report.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1189,7 +1189,7 @@ The test separates data and validation, so it is easy to maintain. If there are 
 
 I recommend starting the test name with the \verb|test-| prefix. This is optional for Clojure: the framework looks for tests by metadata, not by name. The expressions below will remain function and test, even if we name them the other way around.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1217,7 +1217,7 @@ The prefix is required to navigate the code. There are more tests in a module th
 \index{Emacs!navigation}
 \index{navigation}
 
-\mnoindent
+
 Emacs offers code navigation with the \verb|imenu| command and its improved version, \verb|helm-imenu|. When they are called, a buffer with a list of definitions opens. After entering the text, only elements with the prefix will remain. Name the definitions so that the \verb|M-x helm-imenu <RET> test| command leaves only tests on the list.
 
 In general, a test is called \verb|test-<what>-<case>|, where \verb|<what>| is what we are testing, and verb|<case>| stands for the scenario. For example, \verb|test-create-user-ok| means creating a user and expecting success. The \verb|test-create-user-bad-params| name indicates an attempt to create a user with invalid parameters. If the user was unable to login because of an expired signature, the test is called \verb|test-user-login-signature-expired|.
@@ -1228,7 +1228,7 @@ In general, a test is called \verb|test-<what>-<case>|, where \verb|<what>| is w
 
 An unusual question: how to write correctly, \verb|(is (= 200 status))| or \verb|(is (= status 200))|? At first glance, this is absurd: does equality depend on order? The values are either equal or not. But the \verb|is| macro is more complex than we think: it breaks the form \verb|(= 200 status)| Into expected and actual parts.
 
-\mnoindent
+
 The expected value is the one that was calculated in advance. The actual value is the value that the test came out to on its own by calling the function. The number 68 is the expected value, and \verb|(int (->fahr 20))| is the actual one. Status 200 is the expected value, and \verb|(:status response)| is the actual one.
 
 This separation is needed for reports. When the values are not equal, we would like to see where we went wrong. Let's say the report says: \verb|failed (= 200 403)|. What does it mean? Expecting a successful answer, but not enough rights? Or is it a security gap~--- they expected no access to the page, but the user saw it? If it says "expected 200, received 403", then it is clear: this is the first case, with a lack of access rights.
@@ -1236,7 +1236,7 @@ This separation is needed for reports. When the values are not equal, we would l
 Rule: The expected value comes first, and the actual one comes second. Write \verb|(is (= 200 status))| rather than \spverb|(is (= status 200))|.
 This is unusual and contrary to common sense. Usually, the expected value is a scalar, and the actual is an expression, so you want to write them like in the example on the left. Alas, you have to overcome yourself and write as in the sample on the right:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1285,7 +1285,7 @@ The rule is rooted in the past. The JUnit framework introduced exactly this orde
 
 The feature of the expected and actual values is visible when running tests in CIDER. The same test checks the response status for 200. So far so good, it doesn't matter in what order the \verb|is| arguments go. In case of error, the option on the left is confusing. According to it, the 404 (expected) status is considered normal and not 200 (actual). The option on the right displays the statuses correctly.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1374,7 +1374,7 @@ We'll look at other fixture scenarios later in this chapter. For now, let's figu
 
 \index{fixtures!database}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1417,7 +1417,7 @@ We'll look at other fixture scenarios later in this chapter. For now, let's figu
 
 In the example, we first prepare the environment: clean tables, enter data, and then call the test. It also happens the other way around: the test needs final actions. Let's say we are writing intermediate files to disk. We should write a fixture to clean up the file on exit:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1467,7 +1467,7 @@ This is because fixtures work at different stages of testing. Clojure has \verb|
 \index{fixtures!:once}
 \index{fixtires!:each}
 
-\mnoindent
+
 The same fixture can be either \verb|:each| or \verb|:once|. Recall the \verb|fix-clear-files| fixture, which clears a folder. If the files have random names, it is logical to delete them once at the end, and the fixture is bound with \verb|:once|. If the names are the same, the risk of reading and writing from another test (collision) increases. In this case, the fixture is bound with the \verb|:each| key.
 
 Another example is a database fixture. During test execution, it writes data to tables and clears them. If the tests only read data, we specify \verb|:once|. Due to this, we'll gain in speed: the fixture will work once for thirty tests. The write tests that modify the data must not interfere with one another, so we use the fixture with \verb|:each|.
@@ -1493,7 +1493,7 @@ To explore the order of the fixtures, let's add a side effect to them. The \verb
 
 \index{fixtures!order}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1567,7 +1567,7 @@ It will be useful for you to find out where the information about fixtures lies.
 \index{metadata!in tests}
 \index{metadata!in namespaces}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1603,7 +1603,7 @@ There is another stage of fixtures, \verb|:session|, in other languages and fram
 \subsection{Bound Variables}
 
 \index{clojure.core!binding}
-\index{fixtures!с binding}
+\index{fixtures!binding}
 
 Fixtures are especially useful when paired with dynamic variables. Recall: dynamic variables are \verb|def| forms with the \verb|^:dynamic| tag and asterisks. The \verb|binding| macro executes the code with the new value of the variable. We covered them in the chapter on mutability \page{dynamic-vars}.
 
@@ -1614,7 +1614,7 @@ Suppose we are testing a function that takes a path to a file and writes an imag
 \index{classes!File}
 \index{files!temporary}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1662,7 +1662,7 @@ The \verb|with| part of the fixture name hints at the context. Add it when the f
 
 Inside the test, we call \verb|plot-chart| with some data set and the current temporary file.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure/lines*}{firstnumber=1}
@@ -1691,14 +1691,10 @@ Inside the test, we call \verb|plot-chart| with some data set and the current te
 
 \fi
 
-\wavebottom
-
 \noindent
 Let's make sure that the function wrote an image into it. The \verb|PngImage| class offers the simplest PNG parser. Let's read the file resolution and check it against the sample.
 
-\wavetop
-
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure/lines*}{firstnumber=8}
@@ -1727,7 +1723,7 @@ Let's make sure that the function wrote an image into it. The \verb|PngImage| cl
 
 To make the picture complete, let's take a look at the database. Let it be Cassandra, not a JDBC driver. The \verb|fix-with-db| fixture binds \verb|*db*| to the current session. Setting up a session is an expensive operation, so let's move it in a one-time fixture.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1775,7 +1771,7 @@ The second fixture prepares data for each test. The \verb|:once| fixtures run be
 
 \index{SQL!TRUNCATE}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1828,7 +1824,7 @@ Curious about what happens if the fixture calls the test multiple times? Let's w
 \noindent
 and run one test. The framework believes that three tests passed, as stated in the report:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{text}
@@ -1852,7 +1848,7 @@ At first glance, this makes no sense. The multiple-run is not useful but consume
 
 Suppose the program works with a database. The requirements say that it can be PostgreSQL or MySQL. Let's make sure that the program supports both DBMS. To avoid duplication of tests for each type of database, we move the retry logic to a fixture. Let's declare database connections:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1876,7 +1872,7 @@ Suppose the program works with a database. The requirements say that it can be P
 
 Now, we'll add the dynamic variable \verb|*db*|. The new fixture iterates over the connections and binds them to \verb|*db*| at each step. Once the variable is bound, the test runs. It depends on the current connection and therefore addresses either PostgreSQL or MySQL.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1910,7 +1906,7 @@ Now, we'll add the dynamic variable \verb|*db*|. The new fixture iterates over t
 
 The call \verb|(t)| is wrapped in the \verb|testing| form that tells the type of database. If an error occurs, we will find out which database we are working with at that moment. A user data read test:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -1985,7 +1981,7 @@ With its help, we will pass Orwell Test:
 
 By analogy, write a fixture that ruins any test. Make all tests fail.
 
-\subsection{Fixtures with Сonditions}
+\subsection{Fixtures with Conditions}
 
 \index{fixtures!with condition}
 
@@ -2003,7 +1999,7 @@ We use a conditional fixture when we don't know in advance whether we can execut
 
 The fixture, by default, skips tests it doesn't support. If you need an error signal, add a false statement. Notice the second parameter of the \verb|is| macro. This is the message that will appear on the report for this statement.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2069,7 +2065,7 @@ If there are two or more tags, the test name is moved to the next line to visual
 
 It is easy to guess from the tags that our test is for server logic (\verb|backend|), it doesn't need a database (\verb|no-db|), and it is a special test (\verb|special|). The meaning of tags depends on the conventions in your team. To check the flags, let's read the metadata of the \verb|test-special-case| variable. Among the fields you will find the (\verb|special|) field, and the others:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2131,7 +2127,7 @@ Since a keyword in Clojure is a function, the tag itself can be a selector. The 
 \end{english}
 
 \noindent
-To run tests using a selector, pass the label to the \verb|test|command: 
+To run tests using a selector, pass the label to the \verb|test|command:
 
 \begin{english}
   \begin{bash}
@@ -2143,7 +2139,7 @@ $ lein test :special
 
 If no label is given, the framework will assign \verb|:default| to it. Any test is suitable for this selector. The trick is that the \verb|:default| behavior can be changed. Below we'll give it a selector that returns all \textbf{non}-integration tests. As a result, \verb|lein test| will only run unit tests. To run the entire project, we added a label \verb|:all|, which will return true for any test.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2178,7 +2174,7 @@ The selector can be a complete function. Suppose part of a program relies on new
 
 Below is a selector that will return similar tests. Run them with the \spverb|lein test :db-experimental| command:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2205,7 +2201,7 @@ Below is a selector that will return similar tests. Run them with the \spverb|le
 
 You can select tests based on the partial match of namespace and a name. By default, \verb|lein| does not offer \verb|regex| selectors: the \verb|test| command runs a specific test, a namespace, or the entirety. This can be easily fixed with a selector:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2234,7 +2230,7 @@ It will return all tests which names start with \verb|test-api|. The variable na
 \index{clojure.core!ns-name}
 \index{classes!Namespace}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2294,7 +2290,7 @@ If the project runs on Deps, we lose Lein's capabilities, including the test run
 
 Add an entry to the \verb|deps.edn|:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2373,7 +2369,7 @@ A mock is an object that temporarily substitutes a real one. When accessing the 
 
 Let's imagine a mobile app for organizing leisure time. The app home screen shows a map with cafes, restaurants, and upcoming events (films, exhibitions, festivals). The data in JSON comes from the server using HTTP. The \verb|view-main-page| function takes a request with device coordinates, collects information about locations and events, and sends the result:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2412,7 +2408,7 @@ Data about sites and events come from conditional services Yandex.Maps and Afish
 
 \index{HTTP!API}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2467,7 +2463,7 @@ In the chapter on mutability, we worked with with-\verb|with-redefs| \page{with-
 
 Let's write a test for the home screen with two mocks. Let's move their data into variables in \verb|let|. We call the \verb|view-main-page| function inside \verb|with-redefs|; otherwise, the mocking effect is lost.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2530,7 +2526,7 @@ The \verb|sites| and \verb|events| variables that sort of came from third-party 
   \end{clojure}
 \end{english}
 
-\mnoindent
+
 In practice, the \verb|get-sites-by-location| function is more complicated than the example. The establishments we filter according to internal logic. For example, we exclude cafes with a low rating and those that are currently closed. This encourages you to create a separate test: add the low-rated cafes to the file and make sure it's not in the response.
 
 \subsection{Mock in Fixture}
@@ -2539,7 +2535,7 @@ In practice, the \verb|get-sites-by-location| function is more complicated than 
 
 If there are multiple tests, wrapping each one in \verb|with-redefs| is tedious. Put the mock in the fixture. This will reduce repetitions in the code, and other tests can use this fixture.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2621,9 +2617,9 @@ Let's write a \verb|with-mock| macro that takes a function path, a mock result, 
   \end{clojure}
 \end{english}
 
-Important: to replace \verb|path|, we create a function with \verb|fn|, not with \verb|constantly|. The point is that \verb|result| can be not only an expression but also an arbitrary code. \verb|Constantly| is a function, so its arguments are evaluated before calling it. You cannot pass the code with an exception to it. The following code will throw an exception before entering в \verb|with-redefs|.
+Important: to replace \verb|path|, we create a function with \verb|fn|, not with \verb|constantly|. The point is that \verb|result| can be not only an expression but also an arbitrary code. \verb|Constantly| is a function, so its arguments are evaluated before calling it. You cannot pass the code with an exception to it. The following code will throw an exception before entering \verb|with-redefs|.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2659,7 +2655,7 @@ Conversely, wrapping into a function defers code execution until the call:
 
 \verb|With-mock| is used to collect combinations of successes and failures. The test below verifies a scenario where the restaurant service worked without errors, but something is wrong with the events. If you run the test, it turns out that the home screen doesn't catch any exceptions, and the user gets nothing.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure/lines}
@@ -2700,7 +2696,7 @@ Conversely, wrapping into a function defers code execution until the call:
 
 Modify the \verb|view-main-page| so that the test gets a response with status 200 and the \verb|:sites| field. Add tests with other combinations: connection error in \verb|get-sites|, statuses 403 and 500, and unavailability of two services at once.
 
-Consider how to improve \verb|with-mock|. Now macros are nested inside each other, which gives indentation and unnecessary code \ifx\DEVICETYPE\MOBILE(lines 2 and 5)\else(lines 2 and 3)\fi. Make \verb|with-mock| act the same as \verb|let|. The former should accept the binding form, where an odd element is the function path and an even one is the result. Then the cascade of mocks can be replaced by one.
+Consider how to improve \verb|with-mock|. Now macros are nested inside each other, which gives indentation and unnecessary code \ifnarrow(lines 2 and 5)\else(lines 2 and 3)\fi. Make \verb|with-mock| act the same as \verb|let|. The former should accept the binding form, where an odd element is the function path and an even one is the result. Then the cascade of mocks can be replaced by one.
 
 \subsection{Data Collection}
 
@@ -2760,7 +2756,7 @@ Let's write a fixture for the map server. For the path \verb|/search/v1|, the se
 
 \label{sites-handler}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2808,7 +2804,7 @@ Let's wrap the function in middleware. We want the collection from the response 
 
 The server does not change state from test to test because we only read data. Let's connect a fixture with the \verb|:once| key so that it works once:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2842,10 +2838,10 @@ The server does not change state from test to test because we only read data. Le
 
 \index{configuration}
 
-\mnoindent
+
 Let's modify the \verb|get-sites-by-location| function so that the backend accesses the local host. As you might guess, the base URL should be in the config. You are already familiar with how the configuration works, so we will not provide the entire code. For the sake of brevity, let's say the \verb|config| variable is a parameter map. Let's build the full URL for the maps like this:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2866,7 +2862,7 @@ Let's modify the \verb|get-sites-by-location| function so that the backend acces
 
 Let's go back to the home screen test. We don't need mocks, so let's remove the \verb|with-mock| macros. Right now, the test will fail because we solved only the problem with finding establishments. For events, the code is still accessing the third-party server. To check the stub, comment out the events, and set the \verb|:events| field to \verb|nil|. The test will pass without errors: the \verb|:sites| field will contain the data returned by the stub.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2917,7 +2913,7 @@ Write the data received from the real server to the \verb|resources/data/events.
 
 The stub always returns a successful response, which is inconvenient. Let's teach it negative scenarios. Using parameters is the simplest means of doing this. Let's agree that some coordinates that the user sends are special. For the \tuple{0, 0} pair, the server will return an empty result; at \tuple{66, 66} we get an access error. At coordinates \tuple{42, 42}, the response lag of the server is 35 seconds. Let's rewrite \verb|sites-handler*|:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -2979,7 +2975,7 @@ Test the extreme case: what happens if the server is unavailable? To simulate th
 
 \index{unavailability}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3055,7 +3051,7 @@ The \verb|resources_test| path is a poor choice. A more convenient way to bind f
 
 Create folders and move resources for the test there:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{bash}
@@ -3100,7 +3096,7 @@ $ tree env
 \noindent
 Set profiles in the project:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3126,7 +3122,7 @@ At first, it might seem strange that for \verb|:dev| and \verb|:test| we specifi
 
 \index{REPL}
 
-\mnoindent
+
 If you don't like repetitions in the configuration, run the REPL with the \verb|with-profile +test| key. The plus in front of the profile means that you need to \emph{add} it to the standard one. Without the plus, the profile will \emph{replace} it.
 
 \index{profiles!lein}
@@ -3145,7 +3141,7 @@ Note, you moved the file from folder to folder, but for the JVM, it is the same 
 
 Would you like to run the following experiment? Compile \verb|uberjar| with different resources: the first time as usual, and the second time with the \verb|:resource-paths| option:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3227,7 +3223,7 @@ The tables and indexes are ready; now, we need to prepare the data. Let's list t
 
 In a simple case, we store data for tests as a collection. A special function runs through the list of maps; each map is a record in the database. The function is wrapped in a fixture that runs the test after inserting records:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3279,7 +3275,7 @@ For each record, you need to know its table. It can be the first element of a \t
 
 \index{JDBC!insert-multi"!}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3348,7 +3344,7 @@ ioan,19,ioan@dunno.org
 
 Let's compose a query with the \verb|COPY| command. It is a special instruction that works in PostgreSQL. Let's specify the table, the path to the CSV file, and its properties. Here, properties are understood as a  field delimiter, file format, and header attribute. In addition to the comma, the delimiter can be a semicolon or a tab. If there is no header, the fields are considered to be in the same order as in the table.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3392,11 +3388,11 @@ This is a good practice: all large files in the repository must be compressed. T
   \end{clojure}
 \end{english}
 
-The \verb|CopyManager| class is a wrapper over the \verb|COPY| command. Its constructor takes a base connection. Let's clarify: it is an open TCP connection, not a map. The \verb|jdbc/get-connection| function will return the connection from the map \ifx\DEVICETYPE\MOBILE (line 2--3)\else(line 2)\fi. The \verb|copyIn| method expects an SQL query and a CSV data stream. We will get the stream from the \verb|data/users.csv.gz| resource, passing it through a series of functions and classes \ifx\DEVICETYPE\MOBILE (lines 5--10)\else (lines 4--8)\fi. \verb|GZIPInputStream| wraps the stream and decodes the data on the fly when reading. At the end of the work, we close the connection to the database.
+The \verb|CopyManager| class is a wrapper over the \verb|COPY| command. Its constructor takes a base connection. Let's clarify: it is an open TCP connection, not a map. The \verb|jdbc/get-connection| function will return the connection from the map \ifnarrow (line 2--3)\else(line 2)\fi. The \verb|copyIn| method expects an SQL query and a CSV data stream. We will get the stream from the \verb|data/users.csv.gz| resource, passing it through a series of functions and classes \ifnarrow (lines 5--10)\else (lines 4--8)\fi. \verb|GZIPInputStream| wraps the stream and decodes the data on the fly when reading. At the end of the work, we close the connection to the database.
 
 \index{JDBC!get-connection}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure/lines}
@@ -3440,7 +3436,7 @@ The \verb|CopyManager| class is a wrapper over the \verb|COPY| command. Its cons
 
 \fi
 
-\mnoindent
+
 You cannot load one file into several tables at once. Observe the rule: one file~--- one table. If there are multiple files, rewrite the function to take a file path and a table name. The import of \emph{super large} amounts of data (from a million or more) can be carried out in parallel. To do this, the CSV is split into several streams, each of which reads a part of the file. They are loaded simultaneously using futures and \verb|pmap|.
 
 \subsubsection*{The problem with Keys}
@@ -3459,7 +3455,7 @@ Typically, primary keys are auto-numbered integers. To add a record to the table
 
 To link records, set their PK and FK to the same value. Below the user links to the group. The group key was taken randomly.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3487,7 +3483,7 @@ The problem is that a manually specified PK might conflict with the counter. Sup
 
 \index{conflicts of keys}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{text}
@@ -3513,7 +3509,7 @@ The key with a value of 3 conflicts with the record we added earlier. There are 
 Manual updating means the following: Primary keys are explicitly specified in the test data. For convenience, some of them can be moved to a variable. If several entities refer to the administrator, we will move its key
 into a variable:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3555,7 +3551,7 @@ into a variable:
 After inserting, let's modify the counters so that they jump over the values we used. Let there are seven users in the test case, and we have assigned keys 1 through 7 to them. If you set the counter to 100, it will no longer revert to numbers 1 through 7. New records in \verb|users|will receive keys 101, 102, etc. To reset the counter,
 run the query:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3580,7 +3576,7 @@ If the primary key is called \verb|id| (recommended), you only need to know the 
 
 \index{SQL!ALTER SEQUENCE}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3619,7 +3615,7 @@ First, let's remove the primary keys from the test data. No map has an \verb|:id
 
 \index{metadata}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3659,7 +3655,7 @@ Additionally, the loader looks for links in the map before recording. If the fie
 
 Write the loader yourself. Be aware that a \verb|jdbc/insert!| response is database type dependent. Here are examples for popular PostgreSQL and MariaDB databases (a fork of MySQL):
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3715,7 +3711,7 @@ The \verb|TRUNCATE|command is useful for quick table clearing. Unlike \verb|DELE
 Let's write a cleanup function. It sends a query where the comma-separated table names from the data for tests are specified. Add it to the \verb|fix-db-data| fixture after
 calling \verb| (t)|.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3765,13 +3761,13 @@ ROLLBACK;
 
 When leaving the transaction, we will not see the effect of \verb|INSERT|, \verb|UPDATE|, and other changes.
 
-The JDBC package includes the функция \texttt{db-set-roll\-back-only!} function. It takes a transactional connection and sets the \verb|rollback| flag to it. If the flag is set, JDBC ends the block with a rollback.
+The JDBC package includes the \texttt{db-set-roll\-back-only!} function. It takes a transactional connection and sets the \verb|rollback| flag to it. If the flag is set, JDBC ends the block with a rollback.
 
 \index{macros!with-db-transaction}
 
 You are already familiar with the \texttt{with-db-tran\-saction} macro. Inside it, the transactional connection, which is obtained from the JDBC spec, acts. Our \verb|with-db-rollback| macro does the same, but besides sets up a rollback:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3802,7 +3798,7 @@ You are already familiar with the \texttt{with-db-tran\-saction} macro. Inside i
 \noindent
 The macro in action:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3833,7 +3829,7 @@ Make sure that all actions with the base flow through \verb|tx|, not \verb|*db*|
 
 Here the parameter case: \verb|load-data| takes \verb|tx| that we set at the top of the test.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3864,7 +3860,7 @@ Here the parameter case: \verb|load-data| takes \verb|tx| that we set at the top
 
 Dynamic variable option. In this case, we assume that all functions refer to \verb|*db*|. Within the macro, it will become a transactional connection with rollback.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3909,7 +3905,7 @@ Recall the appendix from the first chapter \page{compojure}. We connected indivi
 
 \index{middleware}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3953,7 +3949,7 @@ Recall the appendix from the first chapter \page{compojure}. We connected indivi
 
 Let's write a few tests for the application. To save space, let's check only the response status without looking at \verb|body|. Let's verify the home page:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -3983,7 +3979,7 @@ Let's write a few tests for the application. To save space, let's check only the
 \noindent
 and check the path that is not in the routes:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4034,7 +4030,7 @@ Even if the home page works, there is no guarantee that the request will go thro
 
 Above, we declared the request as a map. This is useful when there are no parameters or a body. If the page needs parameters, you have to write them manually, which is unreadable and difficult to maintain.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4071,7 +4067,7 @@ Let's look at some examples. A \verb|GET| request at \verb|/help|:
 \noindent
 Search movies with parameters:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4097,7 +4093,7 @@ Search movies with parameters:
 \noindent
 Sending web form using the POST method. The request body will become a stream of bytes, class \texttt{ByteArrayInput\-Stream}. The \verb|Content-Type| header will be \verb|application/x-www-form-urlencoded|:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4122,7 +4118,7 @@ Sending web form using the POST method. The request body will become a stream of
 \noindent
 A case for third-party API. The \verb|/users| resource expects JSON, not form fields. The \verb|json-body| function adds body and headers to the request:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4155,7 +4151,7 @@ Above, we validate only the response status. In practice, knowing the status is 
 
 The JSON option is more interesting when we test API. We have to restore the collection from the body and compare it with the sample. Let's turn to the \verb|sites-handler| application, which we've written as a stub for finding cafes \page{sites-handler}. Let's execute a request to it:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4189,7 +4185,7 @@ The disadvantage is that we compare the data as-is. Some response fields change,
 
 Before comparison, unrequired fields are excluded using \verb|dissoc| and \verb|map|. Let's say a search for cafes returned a result:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4218,7 +4214,7 @@ Before comparison, unrequired fields are excluded using \verb|dissoc| and \verb|
 \noindent
 Let's write a function that will clear the body of irrelevant fields.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4247,7 +4243,7 @@ Let's write a function that will clear the body of irrelevant fields.
 \noindent
 Now we compare the data not as-is but using the function:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4274,7 +4270,7 @@ Sometimes you can check not specific values but the structure of the response. T
 \index{spec!valid?}
 \index{spec!assert}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4332,7 +4328,7 @@ Inside the test, in the \verb|system/system| variable, there will be a working s
 
 \index{NPE}
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4373,7 +4369,7 @@ We test the working system as a full-fledged server, not as a function. To test 
 
 Let's write a test for the conditional API that will return the user's orders. In order not to unleash an avalanche of code on you, let's divide the test into logical blocks. First, add a user with public and private keys to the database. For brevity, let's skip pasting orders. The result of inserting them into the database is unimportant, so we shade it with an underline.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure/lines*}{firstnumber=1}
@@ -4402,13 +4398,9 @@ Let's write a test for the conditional API that will return the user's orders. I
 
 \fi
 
-\wavebottom
-
 Assume that the system is already working during testing, thanks to the fixture. Its \verb|db| key refers to public access to the database. Next, let's compose the HTTP request parameters. With the private key, we will get hashes of the parameters using the HMAC-SHA256 algorithm. For a refresher on how key signature works, see \page{hmac-sha256}. We build the authorization header from the hash value:
 
-\wavetop
-
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure/lines*}{firstnumber=8}
@@ -4440,13 +4432,9 @@ Assume that the system is already working during testing, thanks to the fixture.
 
 \fi
 
-\wavebottom
-
 In the third block, we are passing the address, parameters and headers to the HTTP client. At this point, the real network request occurs. The server calculates the signature and compares it with the one sent by the client. If they are equal, we will get status 200 and JSON with orders in the response body.
 
-\wavetop
-
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure/lines*}{firstnumber=17}
@@ -4490,7 +4478,7 @@ It seems that two or three seconds is not too much. But if you need to run the t
 
 It takes two steps. The first step is to modify the system so that it is aware of its state: whether it is on or off. The easiest way to do this is to use a field in the metadata. Let's move the field name into a separate variable. We'll rewrite \verb|start!| so that a flag with the value \verb|true| appears in the system metadata.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4533,7 +4521,7 @@ The \verb|started?| function will return a flag from the metadata of the current
 
 The second step is to check if the system has already started before we enable it in the fixture. If not, the fixture works as usual: start, test, stop. If the system is \emph{already running}, then someone has started it manually. In this case, the fixture will execute only the test, which is much faster.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4609,7 +4597,7 @@ Make sure that the driver is in one of the paths specified in \verb|PATH|, for e
 
 Let's write the first test. Let's say the local server is running on port 8080. The test opens a login form, fills in the fields, and clicks the Login button. The browser refreshes the page, and a welcome message appears. We see the interface elements that were previously hidden (My profile and Logout links).
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4694,7 +4682,7 @@ Let's discuss an alternative: the element can be referenced using a map. The \ve
 
 \index{languages!XPath}
 
-The \verb|index| key refers to the $i$-th element in the case where the selector has found several of them. For example, \spverb {: tag: button: index 1}| degenerates into \verb|.//button [1]|. The index is counted from zero. Keys with namespace \verb|fn| are special: they mean calling an XPath function. Below, the \verb|fn/has-class| key calls \verb|contains| by the class name. We'll get all links that have an active class.
+The \verb|index| key refers to the $i$-th element in the case where the selector has found several of them. For example, \spverb|{: tag: button: index 1}| degenerates into \verb|.//button [1]|. The index is counted from zero. Keys with namespace \verb|fn| are special: they mean calling an XPath function. Below, the \verb|fn/has-class| key calls \verb|contains| by the class name. We'll get all links that have an active class.
 
 \begin{english}
   \begin{clojure}
@@ -4736,7 +4724,7 @@ Let's make the driver work throughout the entire run. Let's declare a dynamic va
 
 The multi-fixture, which we discussed in the middle of the chapter, will help us \page{multi-fixture}. It runs through the list of browser \emph{types}, the \verb|:chrome| and \verb|:firefox| keys. The \verb|with-driver| macro is a general case of \verb|with-chrome|. The difference is that \verb|with-driver| expects the browser type as the first argument. At each step, the fixture binds the driver to a dynamic variable and runs the test.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4775,7 +4763,7 @@ At first glance, this does not change anything; but each approach advantage will
 
 \textbf{Batch actions}. Another way to improve tests is to move similar tasks into a fixture or function. Let's say each test starts with authorization and ends with a logout. To avoid copying the code of these actions, let's write a \verb|fix-login-logout| fixture and register it with the \verb|:each| key.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4846,7 +4834,7 @@ Its first argument is the symbol that the mock storage is associated with. The \
 
 Inside the macro, a \verb|mock| is an atom with a map. It is filled with data as the target is called.  It is noted how many times and with what arguments it was called. Below we've added checks that the function was called once with the parameters "cafe" and "200m."
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4921,7 +4909,7 @@ The \verb|spy| wrapper can take no arguments. In this case, it will return a fun
 
 The \footurl{Midje}{https://github.com/marick/Midje}[Midje] project offers a different syntax of tests. This library is \emph{fact}-based. Here, a fact is a set of checks grouped by meaning. Let's write down the facts about the \verb|split|function:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4954,7 +4942,7 @@ The arrow between expressions is an operator called extended equality. It differ
 
 The \footurl{Test2junit}{https://github.com/ruedigergad/test2junit}[Test to~JUnit] plugin writes a report to XML file in XUnit format. Integration systems like CircleCI or Jenkins display it in a readable way. The graphical report is easier to read than the console output: errors are in red, stacktraces are hidden under the dropdown elements. Add the plugin to Lein and set the path where to write files.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -4979,7 +4967,7 @@ To use the plugin, run \verb|lein test2junit|. You will not see usual messages i
 
 Integration systems allocate a special folder in which logs and other files~--- artifacts~--- are deposited. With their help, failed builds are investigated. The server keeps the folder for a while, so you can examine it later. Typically, the artifact path is specified by the \verb|CI_ARTEFACTS| environment variable or another with a similar name. To save a test report, manually copy it after the run. Another way is to directly target the plugin to the desired path in the settings.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -5003,7 +4991,7 @@ Integration systems allocate a special folder in which logs and other files~--- 
 \noindent
 Make sure the plugin picks up the variable:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{bash}
@@ -5028,9 +5016,9 @@ $ CI_ARTEFACTS=/some/custom/path lein test2junit
 \index{data generation}
 \index{spec!gen}
 
-Sometimes tests need a lot of data: one hundred, two hundred thousand records, or a million. Along with this, the data must be varied; the same set loaded a thousand times will not work. The \footurl{Test.check}{https://github.com/clojure/test.check}[Test check][-5mm] library will handle this. The \verb|gen| module generates random data according to the given rules. Generating records is especially useful. Let's declare a user with three fields: 
+Sometimes tests need a lot of data: one hundred, two hundred thousand records, or a million. Along with this, the data must be varied; the same set loaded a thousand times will not work. The \footurl{Test.check}{https://github.com/clojure/test.check}[Test check][-5mm] library will handle this. The \verb|gen| module generates random data according to the given rules. Generating records is especially useful. Let's declare a user with three fields:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -5051,7 +5039,7 @@ Sometimes tests need a lot of data: one hundred, two hundred thousand records, o
 
 To get a random record, you need to produce three random values and pass them to the \verb|-> User| constructor. The module offers all kinds of generators and their combinations. We will be satisfied with a tuple of a non-empty string, a natural number, and a boolean:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -5106,7 +5094,7 @@ Each call creates a new vector. To get a record, let's complicate the expression
 
 The Spec library (see chapter "Clojure.spec," \page{chapter-spec}) is even more advanced. It offers generators based on Test.check where templates are specified by a spec. So, one more property of specs: besides validation, they are suitable for test data. Below, we'll define a user with three fields:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -5140,7 +5128,7 @@ The Spec library (see chapter "Clojure.spec," \page{chapter-spec}) is even more 
 \noindent
 The \verb|s/gen| function builds a generator on the spec. Here an example of how it works:
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -5164,7 +5152,7 @@ The \verb|s/gen| function builds a generator on the spec. Here an example of how
 
 Instead of random values, you can set options (a list of names, family names, and cities). At the moment, the username is a randomly-generated string, which is ugly. Let's replace the \texttt{:user\-/name} spec with a set of names. When the set is large, place it in the EDN resource and read it when loading the module.
 
-\ifx\DEVICETYPE\MOBILE
+\ifnarrow
 
 \begin{english}
   \begin{clojure}
@@ -5197,9 +5185,9 @@ A test is a code that validates the other code. The test protects the project fr
 
 \index{coverage}
 
-There are several types of tests. Developers mainly work with unit tests. They check functions from the namespace of the same name. The term coverage is associated with unit tests. Сoverage is the code fraction that worked during testing. When analyzing the coverage, take into account not only the percentage. All branches of the algorithm should participate in the process.
+There are several types of tests. Developers mainly work with unit tests. They check functions from the namespace of the same name. The term coverage is associated with unit tests. Coverage is the code fraction that worked during testing. When analyzing the coverage, take into account not only the percentage. All branches of the algorithm should participate in the process.
 
-Fixtures are used to prepare the test for run. These are functions that call the test before or after some action. There are two types of fixtures: "\verb|:once|" fixtures and "\verb|:each|" fixtures. Fixtures are varied: it can be a record to a database, a local server, or a system of components. Sometimes a fixture calls the test multiple times in a loop.
+Fixtures are used to prepare the test for run. These are functions that call the test before or after some action. There are two types of fixtures: "\verb|:once|" fixtures and "\verb|:each|" fixtures. Fixtures are varied: it can be a record to a database, a local server, or a system of components. Sometimes a fixture calls the test multiple times in a loop.
 
 To run some tests, not all at once, you need tags and selectors. A tag is a test metadata field. A selector is a function that takes metadata and returns true or false. Tests are grouped into suites because it is not always possible to run them all in the current environment. Since the keyword behaves like a function, the selector and the tag are most often the same.
 
