@@ -732,7 +732,7 @@ However, we have kept readable names in the example to convey semantics.
 
 \fi
 
-\mnoindent
+\noindent
 Let's add a watch function with the \verb|:watch-store| key to our atom:
 
 \ifx\DEVICETYPE\MOBILE
@@ -1233,7 +1233,7 @@ Let's rewrite that code for a transient vector:
 
 \index{clojure.core!conj"!}
 
-\mnoindent
+\noindent
 To avoid writing \spverb|(conj! result* item)| every time, we introduce the local \verb|push!| function.
 It is closed on \verb|result*| and takes only a value.
 To add an element, calling \verb|(push! x)| is enough. That shortens the code and hides the way the data is accumulated.
@@ -1372,7 +1372,7 @@ Let's compare the regular \verb|reduce| and its mutable version:
 
 \fi
 
-\mnoindent
+\noindent
 We had to wrap the second \verb|reduce| in \texttt{per\-sis\-tent!}. In the case of \verb|loop|, we put \verb|persistent!| inside and isolated the changes. In this regard, \verb|reduce| is less flexible: inside the anonymous function, we do not know whether we have reached the iteration end or not. Without \verb|persistent!|, the second example will return a transient collection, which is invalid.
 
 \subsection{Semantics and Limitations}
@@ -1563,7 +1563,7 @@ When it is \verb|nil|, we'll create, and return a new server. If not, the curren
      nil)))
 \end{clojure}
 
-\mnoindent
+\noindent
 Calling \verb|(start!)| will start the server in the background. A browser will respond to requests at \texttt{localhost\-:8080}.
 The \verb|server| variable will print the server object to REPL.
 
@@ -1907,7 +1907,7 @@ Implementation:
 
 \fi
 
-\mnoindent
+\noindent
 The trick lies in the \verb|log*| parameter \coderef{4}. The anonymous function in \verb|alter-var-root| takes the current value of the variable. It is the initial \verb|clojure.tools.logging/log*|, and the \verb|log*| parameter refers to it.
 The new function is closed on the initial one and can call it.
 
@@ -2741,7 +2741,7 @@ They say that the \verb|binding| effect is thread-safe, which is considered a us
 However, there are situations when changes need to be global.
 To do this, we use the \verb|with-redefs| form.
 
-\mnoindent
+\noindent
 Its syntax is similar to \verb|binding|: a binding vector and arbitrary code. \verb|With-redefs| affects \emph{all} threads.
 Imagine a web server that responds to requests in parallel.
 If one of the pages is executing logic in \verb|with-redefs|, it will affect neighboring requests.
@@ -2788,7 +2788,7 @@ The code below should print "fake print":
 
 That is because \verb|with-redefs| also affected the thread in which the executor processed the task.
 
-\mnoindent
+\noindent
 Without the \verb|@| operator, the effect of \verb|with-redefs| disappears: the future will output 42. The reason is that a future cycle takes some time, albeit a short one.
 Without the \verb|@| operator, we just run the future and exit \verb|with-redefs| right away.
 The pool will reach the \verb|(println 42)| task when the effect of the macro is over.
